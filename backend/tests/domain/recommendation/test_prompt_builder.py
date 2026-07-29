@@ -9,6 +9,7 @@ def test_prompt_is_image_free_and_uses_normalized_context(questionnaire) -> None
     combined = "\n".join(message["content"] for message in messages)
     assert "Condition label: Acne" in combined
     assert "Permitted guidance level: condition_specific_guidance" in combined
+    assert "Controlled visual findings: visible_bumps" in combined
     for forbidden in (
         "image_url",
         "image_path",
@@ -29,4 +30,6 @@ def test_prompt_contains_only_structured_questionnaire_values(questionnaire) -> 
     user = messages[1]["content"]
     assert "- duration: less_than_one_week" in user
     assert "- eye_involvement: no" in user
-    assert "difficulty_breathing" not in user
+    assert "- difficulty_breathing: no" in user
+    assert "- lip_tongue_throat_swelling: no" in user
+    assert "simple morning/evening routine" in user

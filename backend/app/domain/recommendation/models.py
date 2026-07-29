@@ -11,7 +11,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.assessment.conditions import Condition
-from app.domain.assessment.models import ConfidenceLevel
+from app.domain.assessment.models import ConfidenceLevel, VisualFinding
 from app.domain.questionnaire.models import Questionnaire
 from app.domain.safety.models import SafetyResult
 
@@ -51,6 +51,9 @@ class RecommendationAssessmentContext(BaseModel):
 	condition: Condition
 	confidence_level: ConfidenceLevel
 	confidence_score: float | None = Field(default=None, ge=0.0, le=1.0)
+	visual_findings: list[VisualFinding] = Field(default_factory=list, max_length=8)
+	alternative_conditions: list[Condition] = Field(default_factory=list, max_length=3)
+	needs_more_information: bool = False
 	engine_version: str
 
 

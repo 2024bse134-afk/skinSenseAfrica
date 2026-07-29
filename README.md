@@ -3,14 +3,14 @@
 SkinSense Africa is a safety-guarded, AI-assisted skin assessment prototype
 designed with melanin-rich skin tones in mind. A user uploads one skin image,
 receives a preliminary visual assessment, answers a structured safety
-questionnaire, and—only when deterministic safety rules permit it—receives
-educational guidance.
+questionnaire, and receives safety-shaped educational guidance from a separate
+recommendation invocation.
 
 > [!IMPORTANT]
-> SkinSense Africa is an educational prototype, not a medical device and not a
-> substitute for diagnosis or care from a qualified healthcare professional.
-> Urgent, emergency, uncertain, and otherwise unsafe cases are deliberately
-> blocked from AI-generated treatment-like recommendations.
+> SkinSense Africa is an AI-engineering showcase, not a medical device, not a
+> clinically validated diagnostic system, and not intended for production
+> deployment or real-world care decisions. Deterministic rules always own
+> urgency and constrain what the recommendation model may generate.
 
 ## Contents
 
@@ -48,12 +48,16 @@ The current workflow is:
    and any controlled visual findings.
 5. Collect a strict symptom and safety questionnaire.
 6. Evaluate deterministic safety rules.
-7. Take one of two paths:
-   - **Routine:** invoke the recommendation engine separately and show
-     educational guidance.
-   - **Professional review, urgent, or emergency:** do not invoke the
-     recommendation model. Show fixed safety feedback, exact trigger
-     explanations, next steps, and a copyable clinician summary.
+7. Invoke the image-blind recommendation engine separately, unless a hard
+   assessment-quality or unsupported-scope block applies.
+8. Shape the result by safety level:
+   - **Routine:** show richer educational context, product categories, and a
+     simple morning/evening routine.
+   - **Professional review:** lead with review advice while still showing
+     cautious comfort, avoidance, and product-category guidance.
+   - **Urgent or emergency:** lead with fixed escalation guidance and allow the
+     model only to explain the preliminary evidence and why in-person care
+     matters; routine and product steps are removed.
 
 Supported preliminary condition labels are:
 
@@ -81,8 +85,9 @@ The deterministic precedence is:
    extensive blistering, possible infection, significant bleeding, an open
    wound, or corresponding controlled visual warning signals.
 3. **Professional review** — uncertain condition, low confidence, inadequate
-   image quality, persistent or recurrent concern, relevant `unsure` answers,
-   fever or swelling, or unsupported scope.
+   image quality, relevant `unsure` answers, fever or swelling, or unsupported
+   scope. Duration and recurrence remain useful context but do not by
+   themselves force review.
 4. **Routine** — no higher-priority rule was triggered.
 
 The image assessment and recommendation are separate provider calls:
@@ -90,10 +95,13 @@ The image assessment and recommendation are separate provider calls:
 - The **image-assessment invocation** receives only the sanitized image and a
   guarded assessment prompt.
 - The **recommendation invocation** receives structured assessment,
-  questionnaire, and safety context. It never receives the image, Base64,
-  image path, image URL, filename, or EXIF.
-- The recommendation invocation is skipped entirely unless the backend safety
-  result has `recommendation_permission=allowed`.
+  controlled visual findings, alternatives, questionnaire, and safety context.
+  It never receives the image, Base64, image path, image URL, filename, or
+  EXIF.
+- `recommendation_permission` controls the permitted output, not simply whether
+  the provider is called. `allowed` permits educational routines;
+  `escalation_only` permits explanation/referral context without routine steps;
+  `blocked` prevents the recommendation invocation.
 
 ## Architecture
 
@@ -118,8 +126,9 @@ flowchart TD
     Assessment --> Store
     Browser -->|questionnaire| API
     API --> Safety
-    Safety -->|review / urgent / emergency| Feedback
-    Safety -->|routine only| Recommendation
+    Safety --> Feedback
+    Safety -->|allowed / escalation-only| Recommendation
+    Safety -->|hard block| Store
     Feedback --> Store
     Recommendation --> Store
     Store --> Browser
@@ -434,7 +443,7 @@ bundled into browser code.
 | `LLM_BASE_URL` | empty | Required Cortex gateway origin for recommendations |
 | `LLM_TIMEOUT_SECONDS` | `30` | Recommendation request timeout |
 | `CLASSIFIER_PROVIDER` | `mock` | Legacy classifier setting; active image flow uses the assessment provider |
-| `RECOMMENDATION_PROMPT_VERSION` | `v1` | Recommendation prompt configuration |
+| `RECOMMENDATION_PROMPT_VERSION` | `recommendation-v2` | Recommendation prompt configuration |
 | `IMAGE_ASSESSMENT_PROVIDER` | `mock` | Image provider: `mock` or `cortex` |
 | `IMAGE_ASSESSMENT_PROMPT_VERSION` | `image-assessment-v1` | Guarded assessment prompt version |
 | `IMAGE_ASSESSMENT_SCHEMA_VERSION` | `v1` | Strict provider response schema |
@@ -449,7 +458,7 @@ bundled into browser code.
 | `CORTEX_API_KEY` | empty | Server-side Cortex image-assessment credential |
 | `CORTEX_BASE_URL` | project gateway | Cortex gateway origin for image assessment |
 | `CORTEX_IMAGE_MODEL` | `gemini-2.5-flash` | Cortex multimodal model |
-| `SAFETY_POLICY_VERSION` | `v1` | Recorded deterministic policy version |
+| `SAFETY_POLICY_VERSION` | `v2` | Recorded deterministic policy version |
 | `SEVERE_PAIN_THRESHOLD` | `7` | Pain score that enters the urgent branch |
 | `CONFIDENCE_RETAKE_THRESHOLD` | `0.60` | Prototype confidence threshold |
 | `CONFIDENCE_CAUTIOUS_THRESHOLD` | `0.80` | Prototype cautious-guidance threshold |
@@ -720,7 +729,7 @@ gcloud run deploy skinsense-backend \
   --max-instances=1 \
   --execution-environment=gen2 \
   --set-secrets="CORTEX_API_KEY=skinsense-cortex-api-key:latest,LLM_API_KEY=skinsense-cortex-api-key:latest" \
-  --set-env-vars="IMAGE_ASSESSMENT_PROVIDER=cortex,IMAGE_ASSESSMENT_PROMPT_VERSION=image-assessment-v1,IMAGE_ASSESSMENT_SCHEMA_VERSION=v1,IMAGE_ASSESSMENT_TIMEOUT_SECONDS=40,IMAGE_ASSESSMENT_MAX_RETRIES=1,IMAGE_ASSESSMENT_MAX_OUTPUT_TOKENS=4096,IMAGE_ASSESSMENT_TEMPERATURE=0.1,IMAGE_ASSESSMENT_MAX_BYTES=8388608,IMAGE_ASSESSMENT_MAX_PIXELS=20000000,IMAGE_ASSESSMENT_MIN_SIDE=320,IMAGE_ASSESSMENT_MAX_IMAGES=1,CORTEX_BASE_URL=https://cortex-ai-gateway-zo7vz3jvhq-uc.a.run.app,CORTEX_IMAGE_MODEL=gemini-2.5-flash,LLM_PROVIDER=cortex,LLM_MODEL=gemini-2.5-flash,LLM_BASE_URL=https://cortex-ai-gateway-zo7vz3jvhq-uc.a.run.app,LLM_TIMEOUT_SECONDS=30,CLASSIFIER_PROVIDER=mock,RECOMMENDATION_PROMPT_VERSION=v1,SAFETY_POLICY_VERSION=v1,SEVERE_PAIN_THRESHOLD=7,CONFIDENCE_RETAKE_THRESHOLD=0.60,CONFIDENCE_CAUTIOUS_THRESHOLD=0.80" \
+  --set-env-vars="IMAGE_ASSESSMENT_PROVIDER=cortex,IMAGE_ASSESSMENT_PROMPT_VERSION=image-assessment-v1,IMAGE_ASSESSMENT_SCHEMA_VERSION=v1,IMAGE_ASSESSMENT_TIMEOUT_SECONDS=40,IMAGE_ASSESSMENT_MAX_RETRIES=1,IMAGE_ASSESSMENT_MAX_OUTPUT_TOKENS=4096,IMAGE_ASSESSMENT_TEMPERATURE=0.1,IMAGE_ASSESSMENT_MAX_BYTES=8388608,IMAGE_ASSESSMENT_MAX_PIXELS=20000000,IMAGE_ASSESSMENT_MIN_SIDE=320,IMAGE_ASSESSMENT_MAX_IMAGES=1,CORTEX_BASE_URL=https://cortex-ai-gateway-zo7vz3jvhq-uc.a.run.app,CORTEX_IMAGE_MODEL=gemini-2.5-flash,LLM_PROVIDER=cortex,LLM_MODEL=gemini-2.5-flash,LLM_BASE_URL=https://cortex-ai-gateway-zo7vz3jvhq-uc.a.run.app,LLM_TIMEOUT_SECONDS=30,CLASSIFIER_PROVIDER=mock,RECOMMENDATION_PROMPT_VERSION=recommendation-v2,SAFETY_POLICY_VERSION=v2,SEVERE_PAIN_THRESHOLD=7,CONFIDENCE_RETAKE_THRESHOLD=0.60,CONFIDENCE_CAUTIOUS_THRESHOLD=0.80" \
   --labels="application=skinsense-africa,component=backend,environment=prototype"
 ```
 
@@ -887,9 +896,10 @@ The required flag confirms that the script will use its built-in synthetic
 routine questionnaire. Those answers are test data and must not be interpreted
 as medical history belonging to the person shown in the image.
 
-If deterministic safety does not allow a recommendation, the cycle safely
-returns the assessment and safety result without invoking the recommendation
-provider.
+If deterministic safety returns `blocked`, the cycle safely returns the
+assessment and safety result without invoking the recommendation provider.
+`escalation_only` still invokes the provider for explanatory/referral context;
+the backend removes routine and product steps.
 
 ## API reference
 
@@ -906,7 +916,7 @@ With the backend running:
 | `POST` | `/v1/assessments` | Create a draft assessment |
 | `POST` | `/v1/assessments/{id}/image-assessment` | Validate, sanitize, and assess one image |
 | `PUT` | `/v1/assessments/{id}/questionnaire` | Save answers and run deterministic safety |
-| `POST` | `/v1/assessments/{id}/recommendation` | Generate routine educational guidance |
+| `POST` | `/v1/assessments/{id}/recommendation` | Generate safety-shaped educational or escalation context |
 | `GET` | `/v1/assessments/{id}` | Read normalized workflow state |
 | `POST` | `/v1/referrals` | Create a transient prototype referral request |
 
@@ -934,8 +944,9 @@ curl -X POST \
 The questionnaire endpoint requires every structured field. The browser UI or
 Swagger interface is the easiest way to submit the full payload.
 
-Request the recommendation only after the questionnaire returns
-`recommendation_permission: "allowed"`:
+Request the recommendation after the questionnaire returns
+`recommendation_permission: "allowed"` or `"escalation_only"`. Do not request
+it when permission is `"blocked"`:
 
 ```bash
 curl -X POST \
@@ -974,8 +985,14 @@ draft
               -> recommendation
                  -> completed
            -> professional_review_required
+              -> recommendation when not blocked
+                 -> completed
            -> urgent
+              -> recommendation
+                 -> completed
            -> emergency
+              -> recommendation
+                 -> completed
      -> retake_required
         -> image-assessment with a replacement image
 ```
@@ -1106,10 +1123,16 @@ Browser checks are for early feedback only; backend decoding is authoritative.
 
 ### A result says professional review, urgent, or emergency
 
-This is the intended safety behavior. The recommendation endpoint is blocked,
-and the result page displays deterministic safety feedback instead. Do not
-loosen the gate merely to force a recommendation during testing; use mock or
-synthetic routine questionnaire data when testing the allowed path.
+This is the intended safety behavior. The result page always leads with
+deterministic safety feedback. Professional-review results can include cautious
+comfort and avoidance guidance; urgent and emergency results can include
+AI-generated explanatory context but never routine or product steps. Only hard
+blocks such as an uncertain/unsupported assessment or a required image retake
+skip the recommendation provider.
+
+For presentations, the questionnaire includes a clearly labeled synthetic demo
+profile. It is a shortcut for exercising the routine branch and must not be
+treated as a person's reported medical history.
 
 ## Current limitations
 
@@ -1167,5 +1190,5 @@ Do not deploy this prototype for real patient use without, at minimum:
   original architectural and safety audit.
 
 When changing the workflow, keep the central invariant intact: deterministic
-backend safety policy decides whether recommendation generation is permitted;
-an AI provider never makes that decision.
+backend safety policy decides whether the provider may be invoked and which
+content shape is permitted; an AI provider never makes that decision.

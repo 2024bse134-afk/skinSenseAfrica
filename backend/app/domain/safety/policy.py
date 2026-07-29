@@ -7,7 +7,7 @@ from app.domain.assessment.models import (
     ImageQualityStatus,
     VisualSafetySignal,
 )
-from app.domain.questionnaire.models import AgeGroup, Answer, DurationBand, Questionnaire
+from app.domain.questionnaire.models import AgeGroup, Answer, Questionnaire
 from app.domain.safety.models import (
     ClinicianSummary,
     RecommendationPermission,
@@ -29,8 +29,8 @@ URGENT_MESSAGE = (
     "assessment for these warning signs."
 )
 REVIEW_MESSAGE = (
-    "A qualified health professional should review this concern before condition-specific "
-    "guidance is provided."
+    "A qualified health professional should review this concern. The educational "
+    "guidance is limited to reflect the reported uncertainty or review indicators."
 )
 ROUTINE_MESSAGE = (
     "No deterministic red flag was identified from the information provided. Continue "
@@ -118,9 +118,15 @@ WITHHELD_REASONS = {
         "in-person assessment before condition-specific advice."
     ),
     Urgency.PROFESSIONAL_REVIEW: (
-        "Condition-specific guidance was withheld because the available information "
-        "requires professional review."
+        "Guidance was limited because the available information also supports "
+        "professional review."
     ),
+}
+
+HARD_REVIEW_BLOCKS = {
+    RedFlag.UNSUPPORTED_OR_UNCERTAIN_CONDITION,
+    RedFlag.IMAGE_RETAKE_REQUIRED,
+    RedFlag.UNSUPPORTED_SCOPE,
 }
 
 
@@ -183,7 +189,11 @@ def _result(
     permission = {
         Urgency.EMERGENCY: RecommendationPermission.ESCALATION_ONLY,
         Urgency.URGENT: RecommendationPermission.ESCALATION_ONLY,
-        Urgency.PROFESSIONAL_REVIEW: RecommendationPermission.BLOCKED,
+        Urgency.PROFESSIONAL_REVIEW: (
+            RecommendationPermission.BLOCKED
+            if HARD_REVIEW_BLOCKS.intersection(unique_flags)
+            else RecommendationPermission.ALLOWED
+        ),
         Urgency.ROUTINE: RecommendationPermission.ALLOWED,
     }[urgency]
     return SafetyResult(
@@ -201,7 +211,7 @@ def evaluate_safety(
     questionnaire: Questionnaire,
     *,
     severe_pain_threshold: int = 7,
-    policy_version: str = "v1",
+    policy_version: str = "v2",
 ) -> SafetyResult:
     """Evaluate emergency > urgent > professional review > routine."""
 
@@ -267,12 +277,6 @@ def evaluate_safety(
         review.append(RedFlag.LOW_CONFIDENCE)
     if assessment.image_quality.status is ImageQualityStatus.RETAKE_REQUIRED:
         review.append(RedFlag.IMAGE_RETAKE_REQUIRED)
-    if questionnaire.recurrent is Answer.YES or questionnaire.duration in {
-        DurationBand.ONE_TO_SIX_MONTHS,
-        DurationBand.MORE_THAN_SIX_MONTHS,
-    }:
-        review.append(RedFlag.PERSISTENT_OR_RECURRENT)
-
     relevant_answers = (
         questionnaire.rapidly_spreading,
         questionnaire.fever,

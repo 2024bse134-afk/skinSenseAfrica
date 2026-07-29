@@ -27,7 +27,6 @@ from app.application.assessment.service import assess_validated_image
 from app.application.recommendation.service import (
     RecommendationBlockedError,
     RecommendationUnavailableError,
-    RedFlagEscalationRequiredError,
     generate_recommendation,
 )
 from app.domain.assessment.models import ImageAssessmentResult
@@ -38,7 +37,7 @@ from app.domain.recommendation.models import (
     RecommendationResult,
 )
 from app.domain.recommendation.policy import decide_guidance
-from app.domain.safety.models import RecommendationPermission, SafetyResult, Urgency
+from app.domain.safety.models import RecommendationPermission, SafetyResult
 from app.domain.safety.policy import evaluate_safety
 from app.infrastructure.image.validator import ImageValidationError, validate_and_sanitize_image
 from app.infrastructure.llm.client import LLMClient
@@ -243,14 +242,7 @@ async def create_recommendation(
     if record.assessment is None or record.questionnaire is None or record.safety is None:
         raise _state_conflict("Assessment is not ready for recommendation generation.")
 
-    if record.safety.urgency in {Urgency.EMERGENCY, Urgency.URGENT}:
-        raise APIError(
-            409,
-            ErrorCode.RED_FLAG_ESCALATION_REQUIRED,
-            record.safety.action_message,
-            details={"urgency": record.safety.urgency.value},
-        )
-    if record.safety.recommendation_permission is not RecommendationPermission.ALLOWED:
+    if record.safety.recommendation_permission is RecommendationPermission.BLOCKED:
         raise APIError(
             409,
             ErrorCode.RECOMMENDATION_BLOCKED,
@@ -265,6 +257,9 @@ async def create_recommendation(
             condition=record.assessment.condition,
             confidence_level=record.assessment.confidence_level,
             confidence_score=record.assessment.confidence_score,
+            visual_findings=record.assessment.visual_findings,
+            alternative_conditions=record.assessment.alternative_conditions,
+            needs_more_information=record.assessment.needs_more_information,
             engine_version=record.assessment.engine_version,
         ),
         questionnaire=record.questionnaire,
@@ -275,12 +270,6 @@ async def create_recommendation(
 
     try:
         result = await generate_recommendation(recommendation_input, llm_client)
-    except RedFlagEscalationRequiredError as exc:
-        raise APIError(
-            409,
-            ErrorCode.RED_FLAG_ESCALATION_REQUIRED,
-            record.safety.action_message,
-        ) from exc
     except RecommendationBlockedError as exc:
         raise APIError(
             409,

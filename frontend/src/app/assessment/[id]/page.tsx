@@ -65,7 +65,12 @@ export default function AssessmentImagePage() {
         transition({ type: 'markCompleted' });
         router.push(`/result/${assessmentId}`);
       })
-      .catch((error) =>
+      .catch((error) => {
+        if (data.safety && data.safety.urgency !== 'routine') {
+          transition({ type: 'markRequiresReview' });
+          router.push(`/result/${assessmentId}`);
+          return;
+        }
         transition({
           type: 'markFailed',
           error:
@@ -74,9 +79,9 @@ export default function AssessmentImagePage() {
               : error instanceof ApiClientError
                 ? error.message
                 : 'We could not prepare your guidance right now.',
-        }),
-      );
-  }, [assessmentId, phase, router, transition]);
+        });
+      });
+  }, [assessmentId, data.safety, phase, router, transition]);
 
   function handleFileSelected(file: File) {
     if (data.imagePreviewUrl) URL.revokeObjectURL(data.imagePreviewUrl);
@@ -119,7 +124,7 @@ export default function AssessmentImagePage() {
       const response = await saveQuestionnaire(assessmentId, questionnaire);
       transition({ type: 'setQuestionnaire', questionnaire });
       transition({ type: 'setSafety', safety: response.safety });
-      if (response.safety.recommendation_permission === 'allowed') {
+      if (response.safety.recommendation_permission !== 'blocked') {
         startedGeneration.current = false;
         transition({ type: 'startGeneratingRecommendation' });
       } else {

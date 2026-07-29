@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     llm_base_url: str = ""
     llm_timeout_seconds: float = 30.0
     classifier_provider: str = "mock"
-    recommendation_prompt_version: str = "v1"
+    recommendation_prompt_version: str = "recommendation-v2"
     image_assessment_provider: str = "mock"
     image_assessment_prompt_version: str = "image-assessment-v1"
     image_assessment_schema_version: str = "v1"
@@ -38,7 +38,7 @@ class Settings(BaseSettings):
         min_length=1,
         max_length=120,
     )
-    safety_policy_version: str = "v1"
+    safety_policy_version: str = "v2"
     severe_pain_threshold: int = Field(default=7, ge=1, le=10)
     # Prototype configuration, not clinical truth - tune after evaluation.
     CONFIDENCE_RETAKE_THRESHOLD: float = 0.60

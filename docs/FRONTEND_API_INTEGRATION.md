@@ -107,12 +107,12 @@ sequenceDiagram
         Safety-->>API: SafetyResult
         API-->>UI: { id, status, safety }
 
-        alt recommendation_permission = allowed
+        alt recommendation_permission != blocked
             UI->>API: POST /v1/assessments/{id}/recommendation
             API->>Recommend: Image-free structured invocation
             Recommend-->>API: Recommendation draft
             API-->>UI: RecommendationResult
-        else blocked or escalation_only
+        else blocked
             UI->>API: GET /v1/assessments/{id}
             API-->>UI: Assessment with SafetyFeedback
             UI->>UI: Render safety result; do not request recommendation
@@ -131,7 +131,7 @@ returns `409 ASSESSMENT_STATE_CONFLICT`.
 | `POST` | `/v1/assessments` | Create a workflow ID | `201` |
 | `POST` | `/v1/assessments/{id}/image-assessment` | Upload and assess one image | `200` |
 | `PUT` | `/v1/assessments/{id}/questionnaire` | Save answers and run safety | `200` |
-| `POST` | `/v1/assessments/{id}/recommendation` | Generate allowed educational guidance | `200` |
+| `POST` | `/v1/assessments/{id}/recommendation` | Generate safety-shaped educational or escalation context | `200` |
 | `GET` | `/v1/assessments/{id}` | Resume/load normalized workflow state | `200` |
 | `POST` | `/v1/referrals` | Submit a prototype contact request | `201` |
 
@@ -501,7 +501,7 @@ Response: `200 OK`
     "urgency": "routine",
     "red_flags": [],
     "recommendation_permission": "allowed",
-    "policy_version": "v1",
+    "policy_version": "v2",
     "action_message": "No deterministic red flag was identified from the information provided. Continue to educational guidance and seek care if symptoms worsen.",
     "feedback": null
   }
@@ -523,7 +523,7 @@ Only this branch may call the recommendation endpoint.
       "high_fever"
     ],
     "recommendation_permission": "escalation_only",
-    "policy_version": "v1",
+    "policy_version": "v2",
     "action_message": "Seek urgent in-person medical care as soon as possible. Do not rely on an AI assessment for these warning signs.",
     "feedback": {
       "heading": "Urgent warning signs were reported",
@@ -573,7 +573,7 @@ Professional-review, urgent, and emergency results always include
 | Safety urgency | Response `status` | Permission |
 |---|---|---|
 | `routine` | `questionnaire_completed` | `allowed` |
-| `professional_review` | `professional_review_required` | `blocked` |
+| `professional_review` | `professional_review_required` | `allowed` for advisory causes; otherwise `blocked` |
 | `urgent` | `urgent` | `escalation_only` |
 | `emergency` | `emergency` | `escalation_only` |
 
@@ -590,7 +590,7 @@ Request:
 {}
 ```
 
-Call this endpoint only when the questionnaire response contains:
+Call this endpoint whenever the questionnaire response is not blocked:
 
 ```json
 {
@@ -599,6 +599,10 @@ Call this endpoint only when the questionnaire response contains:
   }
 }
 ```
+
+`escalation_only` is also invokable. It permits explanatory/referral context,
+but the backend removes routine and product steps. Do not call the endpoint
+when the value is `blocked`.
 
 The frontend does not send the assessment result, questionnaire, safety result,
 or image back to this endpoint. The backend retrieves its own normalized state
@@ -618,12 +622,12 @@ Response: `200 OK`
     "urgency": "routine",
     "red_flags": [],
     "recommendation_permission": "allowed",
-    "policy_version": "v1",
+    "policy_version": "v2",
     "action_message": "No deterministic red flag was identified from the information provided. Continue to educational guidance and seek care if symptoms worsen.",
     "feedback": null
   },
   "model_version": "cortex:gemini-2.5-flash",
-  "prompt_version": "v1",
+  "prompt_version": "recommendation-v2",
   "disclaimer": "This output is educational and not a medical diagnosis. If symptoms are severe, worsening, or concerning, seek qualified professional care promptly.",
   "generated_at": "2026-07-29T18:31:00Z",
   "draft": {
@@ -665,21 +669,20 @@ cautious_guidance
 condition_specific_guidance
 ```
 
-The current guarded workflow normally reaches this endpoint only for
-`cautious_guidance` or `condition_specific_guidance`.
+The guarded workflow can reach this endpoint for every guidance level except a
+hard-blocked assessment. Backend post-processing enforces the permitted shape.
 
 ### Idempotency
 
 Once an assessment reaches `completed`, repeating this request returns the
 stored recommendation instead of calling the provider again.
 
-### Blocked calls
+### Hard-blocked calls
 
-If the frontend incorrectly calls this endpoint for a non-routine safety
-result, the backend returns:
+If the frontend incorrectly calls this endpoint when safety permission is
+`blocked`, the backend returns:
 
-- `409 RECOMMENDATION_BLOCKED` for professional review;
-- `409 RED_FLAG_ESCALATION_REQUIRED` for urgent or emergency.
+- `409 RECOMMENDATION_BLOCKED`.
 
 Do not use that error as the normal branching mechanism. Branch on the
 questionnaire response before making the request.
@@ -751,7 +754,7 @@ Response: `200 OK`
     "urgency": "routine",
     "red_flags": [],
     "recommendation_permission": "allowed",
-    "policy_version": "v1",
+    "policy_version": "v2",
     "action_message": "No deterministic red flag was identified from the information provided. Continue to educational guidance and seek care if symptoms worsen.",
     "feedback": null
   },
@@ -769,12 +772,12 @@ Response: `200 OK`
       "urgency": "routine",
       "red_flags": [],
       "recommendation_permission": "allowed",
-      "policy_version": "v1",
+      "policy_version": "v2",
       "action_message": "No deterministic red flag was identified from the information provided. Continue to educational guidance and seek care if symptoms worsen.",
       "feedback": null
     },
     "model_version": "cortex:gemini-2.5-flash",
-    "prompt_version": "v1",
+    "prompt_version": "recommendation-v2",
     "disclaimer": "Educational guidance only.",
     "generated_at": "2026-07-29T18:31:00Z",
     "draft": {
@@ -895,13 +898,11 @@ const questionnaireResult = await saveQuestionnaire(
 
 const { safety } = questionnaireResult;
 
-if (safety.recommendation_permission === 'allowed') {
+if (safety.recommendation_permission !== 'blocked') {
   await getAssessmentRecommendation(assessmentId);
-  router.push(`/result/${assessmentId}`);
-} else {
-  // Do not call the recommendation endpoint.
-  router.push(`/result/${assessmentId}`);
 }
+
+router.push(`/result/${assessmentId}`);
 ```
 
 Result rendering:
@@ -909,12 +910,12 @@ Result rendering:
 ```ts
 const record = await getAssessment(assessmentId);
 
-if (
-  record.safety &&
-  record.safety.recommendation_permission !== 'allowed'
-) {
+if (record.safety?.recommendation_permission === 'blocked') {
   renderSafetyFeedback(record.safety);
 } else if (record.recommendation) {
+  if (record.safety?.urgency !== 'routine') {
+    renderSafetyFeedback(record.safety);
+  }
   renderRecommendation(record.recommendation);
 } else {
   renderNotReady();
@@ -932,7 +933,9 @@ For `professional_review`, `urgent`, and `emergency`:
 5. show the preliminary condition and confidence as non-diagnostic;
 6. show or copy `clinician_summary`;
 7. show `guidance_withheld_reason`;
-8. do not render recommendation treatment/care sections.
+8. show cautious recommendation context for professional review;
+9. for urgent/emergency, show only explanation/referral context and hide
+   routine, prevention, product, and referral-request UI.
 
 Do not derive new medical instructions from `red_flags` in the browser. Display
 the backend-owned labels and actions.
@@ -983,7 +986,6 @@ interface BackendErrorResponse {
 | `404` | `ASSESSMENT_NOT_FOUND` | Clear stale ID and offer start-over |
 | `409` | `ASSESSMENT_STATE_CONFLICT` | Reload state or return to required step |
 | `409` | `RECOMMENDATION_BLOCKED` | Load and display safety feedback |
-| `409` | `RED_FLAG_ESCALATION_REQUIRED` | Load and display urgent/emergency feedback |
 | `413` | `IMAGE_TOO_LARGE` | Ask for an image under 8 MiB |
 | `415` | `INVALID_IMAGE_TYPE` | Ask for genuine JPEG, PNG, or WebP |
 | `422` | `IMAGE_DECODE_FAILED` | Ask for another readable image |
@@ -1143,7 +1145,7 @@ if (!response.ok) {
 | `POST /v1/assessments` | Do not blindly retry after an unknown response; it may create another ID |
 | Image assessment | User-controlled retry is preferred |
 | Questionnaire `PUT` | Safe to resend with the same answers while state permits |
-| Recommendation `POST` | Safe after routine state; completed calls are idempotent |
+| Recommendation `POST` | Safe after any non-blocked safety result; completed calls are idempotent |
 | Assessment `GET` | Safe to retry |
 | Referral `POST` | Do not blindly retry after an unknown response; duplicates are possible |
 
@@ -1154,7 +1156,7 @@ Suggested maximum UI behavior:
 - one automatic retry for transient `GET` requests;
 - user-confirmed retry for image assessment and recommendation;
 - exponential backoff for background polling;
-- never retry safety-blocked recommendation calls.
+- never retry hard-blocked recommendation calls.
 
 ### Browser request timeouts
 
@@ -1241,7 +1243,7 @@ Before considering a frontend integration complete:
 - [ ] Browser code does not manually set multipart `Content-Type`.
 - [ ] Retake-required assessments never proceed to questionnaire/recommendation.
 - [ ] Every questionnaire field is submitted with an explicit value.
-- [ ] The recommendation endpoint is called only for `allowed`.
+- [ ] The recommendation endpoint is called for `allowed` and `escalation_only`, never `blocked`.
 - [ ] Blocked paths render backend `SafetyFeedback`.
 - [ ] Result pages can reload using `GET /v1/assessments/{id}`.
 - [ ] Stable error codes drive user-friendly messages.

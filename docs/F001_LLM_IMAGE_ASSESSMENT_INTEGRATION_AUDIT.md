@@ -10,6 +10,14 @@
 
 Evidence is cited as `path:line` or `path:line-line`. Statements labelled **Current fact** describe verified code. Statements labelled **Recommendation** describe proposed work.
 
+> [!NOTE]
+> This document records the original audit and proposed safety architecture.
+> The showcase implementation was intentionally evolved on 2026-07-30:
+> advisory professional-review and escalation-only states may now invoke the
+> image-blind recommendation provider, while backend post-processing limits the
+> output. See `F001A_GUARDED_ASSESSMENT_FOUNDATION.md` and
+> `FRONTEND_API_INTEGRATION.md` for the current contract.
+
 ## Implementation Status — F001A Guarded Assessment Foundation
 
 **Implemented on 2026-07-29.** The repository now contains the guarded foundation proposed by this audit:
@@ -22,7 +30,8 @@ Evidence is cited as `path:line` or `path:line-line`. Statements labelled **Curr
 - one-request `POST /v1/assessments/{assessment_id}/image-assessment`;
 - normalized assessment/safety persistence with no repository image-byte store;
 - deterministic emergency, urgent, professional-review, and routine precedence;
-- recommendation LLM short-circuiting for blocked and escalation states;
+- recommendation LLM short-circuiting for hard-blocked states and
+  safety-constrained output for advisory/escalation states;
 - frontend preliminary-assessment, retake, structured-questionnaire, and safety-first result flows;
 - synthetic-image, provider, safety, error, lifecycle, and recommendation regression tests.
 

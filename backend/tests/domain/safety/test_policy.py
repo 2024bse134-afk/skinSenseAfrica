@@ -64,7 +64,6 @@ def test_each_urgent_rule_overrides_review(questionnaire, updates, flag) -> None
     "assessment_updates,questionnaire_updates",
     [
         ({"condition": "other_or_uncertain", "confidence_level": "unknown", "confidence_score": None, "recommendation_status": "blocked"}, {}),
-        ({"confidence_level": "low", "confidence_score": 0.3}, {}),
         (
             {
                 "assessment_status": "retake_required",
@@ -76,13 +75,10 @@ def test_each_urgent_rule_overrides_review(questionnaire, updates, flag) -> None
             },
             {},
         ),
-        ({}, {"recurrent": "yes"}),
-        ({}, {"duration": "more_than_six_months"}),
-        ({}, {"eye_involvement": "unsure"}),
         ({"visual_safety_signals": ["unsupported_scope"]}, {}),
     ],
 )
-def test_professional_review_branches(
+def test_unsupported_or_unusable_review_branches_remain_blocked(
     questionnaire, assessment_updates, questionnaire_updates
 ) -> None:
     q = with_answers(questionnaire, **questionnaire_updates)
@@ -94,6 +90,47 @@ def test_professional_review_branches(
         "acne",
         "other_or_uncertain",
     }
+
+
+@pytest.mark.parametrize(
+    "assessment_updates,questionnaire_updates",
+    [
+        ({"confidence_level": "low", "confidence_score": 0.3}, {}),
+        ({}, {"eye_involvement": "unsure"}),
+        ({}, {"fever": "yes"}),
+        ({}, {"swelling": "yes"}),
+    ],
+)
+def test_review_indicators_shape_but_do_not_block_guidance(
+    questionnaire, assessment_updates, questionnaire_updates
+) -> None:
+    q = with_answers(questionnaire, **questionnaire_updates)
+    result = evaluate_safety(make_assessment_result(**assessment_updates), q)
+
+    assert result.urgency is Urgency.PROFESSIONAL_REVIEW
+    assert result.recommendation_permission is RecommendationPermission.ALLOWED
+    assert result.feedback is not None
+    assert result.feedback.guidance_withheld_reason.startswith("Guidance was limited")
+
+
+@pytest.mark.parametrize(
+    "updates",
+    [
+        {"recurrent": "yes"},
+        {"duration": "one_to_six_months"},
+        {"duration": "more_than_six_months"},
+        {"recurrent": "yes", "duration": "more_than_six_months"},
+    ],
+)
+def test_chronic_or_recurrent_history_remains_recommendation_context(
+    questionnaire, updates
+) -> None:
+    q = with_answers(questionnaire, **updates)
+    result = evaluate_safety(make_assessment_result(), q)
+
+    assert result.urgency is Urgency.ROUTINE
+    assert result.recommendation_permission is RecommendationPermission.ALLOWED
+    assert result.red_flags == []
 
 
 def test_routine_branch(questionnaire) -> None:

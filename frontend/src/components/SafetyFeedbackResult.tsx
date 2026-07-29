@@ -37,8 +37,10 @@ function buildClinicianText(safety: SafetyResult, summary: ClinicianSummary) {
 
 export function SafetyFeedbackResult({
   assessment,
+  embedded = false,
 }: {
   assessment: AssessmentDetail;
+  embedded?: boolean;
 }) {
   const safety = assessment.safety;
   const feedback = safety?.feedback;
@@ -125,7 +127,7 @@ export function SafetyFeedbackResult({
             </ol>
           </section>
 
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
+          {!embedded ? <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
               Preliminary assessment
             </p>
@@ -143,7 +145,7 @@ export function SafetyFeedbackResult({
                 {limitation}
               </p>
             ))}
-          </section>
+          </section> : null}
 
           <ClinicianSummaryCard
             safety={safety}
@@ -153,7 +155,7 @@ export function SafetyFeedbackResult({
           />
 
           <aside className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-950">
-            <strong>Why treatment guidance was withheld:</strong>{' '}
+            <strong>How safety changed the guidance:</strong>{' '}
             {feedback.guidance_withheld_reason}
           </aside>
         </>
@@ -171,12 +173,12 @@ export function SafetyFeedbackResult({
         </section>
       )}
 
-      <Link
+      {!embedded ? <Link
         href="/"
         className="inline-block rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white"
       >
         Start a new assessment
-      </Link>
+      </Link> : null}
     </div>
   );
 }

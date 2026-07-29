@@ -111,9 +111,18 @@ class SafetyResult(BaseModel):
     def validate_precedence_contract(self) -> "SafetyResult":
         if len(set(self.red_flags)) != len(self.red_flags):
             raise ValueError("red flags must be unique")
+        hard_review_blocks = {
+            RedFlag.UNSUPPORTED_OR_UNCERTAIN_CONDITION,
+            RedFlag.IMAGE_RETAKE_REQUIRED,
+            RedFlag.UNSUPPORTED_SCOPE,
+        }
         expected = {
             Urgency.ROUTINE: RecommendationPermission.ALLOWED,
-            Urgency.PROFESSIONAL_REVIEW: RecommendationPermission.BLOCKED,
+            Urgency.PROFESSIONAL_REVIEW: (
+                RecommendationPermission.BLOCKED
+                if hard_review_blocks.intersection(self.red_flags)
+                else RecommendationPermission.ALLOWED
+            ),
             Urgency.URGENT: RecommendationPermission.ESCALATION_ONLY,
             Urgency.EMERGENCY: RecommendationPermission.ESCALATION_ONLY,
         }[self.urgency]

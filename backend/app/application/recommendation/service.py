@@ -22,7 +22,7 @@ from app.domain.recommendation.policy import (
 	is_referral_required,
 )
 from app.domain.recommendation.prompt_builder import PROMPT_VERSION, build_messages
-from app.domain.safety.models import RecommendationPermission, Urgency
+from app.domain.safety.models import RecommendationPermission
 from app.infrastructure.llm.client import LLMClient, RecommendationLLMError
 
 
@@ -48,10 +48,6 @@ class RecommendationUnavailableError(Exception):
 
 class RecommendationBlockedError(Exception):
 	"""Raised before LLM invocation when backend safety blocks guidance."""
-
-
-class RedFlagEscalationRequiredError(Exception):
-	"""Raised when a recommendation is requested for urgent/emergency safety state."""
 
 
 def parse_llm_output(raw: str) -> RecommendationDraft:
@@ -98,25 +94,27 @@ def enforce_guidance_consistency(
 ) -> RecommendationDraft:
 	"""Correct unsafe draft actions when model output violates permitted guidance level."""
 
-	if guidance_level not in {
-		GuidanceLevel.URGENT_REFERRAL,
-		GuidanceLevel.PROFESSIONAL_REVIEW,
-	}:
+	if guidance_level not in {GuidanceLevel.URGENT_REFERRAL, GuidanceLevel.PROFESSIONAL_REVIEW}:
 		return draft
 
-	action_type = draft.recommended_action.type.strip().lower()
-	has_steps = len(draft.recommended_action.steps) > 0
-	is_violation = action_type == "self_care" or has_steps
-	if not is_violation:
-		return draft
-
-	logger.warning(
-		"Model output violated permitted guidance level '%s'; overriding to referral-safe action.",
-		guidance_level.value,
-	)
 	corrected = draft.model_copy(deep=True)
-	corrected.recommended_action.type = "referral"
-	corrected.recommended_action.steps = []
+	action_type = corrected.recommended_action.type.strip().lower()
+
+	if guidance_level is GuidanceLevel.URGENT_REFERRAL:
+		if action_type != "referral" or corrected.recommended_action.steps:
+			logger.warning(
+				"Model output violated urgent-referral guidance; overriding action."
+			)
+		corrected.recommended_action.type = "referral"
+		corrected.recommended_action.steps = []
+	else:
+		if action_type == "self_care":
+			logger.warning(
+				"Model output used self-care action for professional review; "
+				"retaining cautious steps under a review action."
+			)
+		corrected.recommended_action.type = "professional_review"
+
 	if not corrected.recommended_action.referral_reason:
 		corrected.recommended_action.referral_reason = REFERRAL_OVERRIDE_REASON
 	return corrected
@@ -152,9 +150,7 @@ async def generate_recommendation(
 ) -> RecommendationResult:
 	"""Generate recommendation result with one retry on LLM or parse failure."""
 
-	if input.safety.urgency in {Urgency.EMERGENCY, Urgency.URGENT}:
-		raise RedFlagEscalationRequiredError("RED_FLAG_ESCALATION_REQUIRED")
-	if input.safety.recommendation_permission is not RecommendationPermission.ALLOWED:
+	if input.safety.recommendation_permission is RecommendationPermission.BLOCKED:
 		raise RecommendationBlockedError("RECOMMENDATION_BLOCKED")
 
 	guidance_level = input.allowed_guidance_level

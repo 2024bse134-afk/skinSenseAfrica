@@ -21,8 +21,8 @@ flowchart TD
     UI -->|strict Questionnaire| Q[Questionnaire endpoint]
     Q --> D[Deterministic safety policy]
     D --> S
-    D -->|routine / allowed| REC[Existing recommendation LLM service]
-    D -->|review / urgent / emergency| STOP[Block or fixed escalation message]
+    D -->|allowed / escalation-only| REC[Recommendation LLM service]
+    D -->|hard block| STOP[Fixed safety feedback only]
 ```
 
 The provider boundary is `backend/app/application/assessment/ports.py`. A future multimodal LLM or trained classifier implements `ImageAssessmentProvider` and returns `ProviderAssessmentDraft`; it cannot control engine identity, timestamps, prompt version, limitations, urgency, red flags, recommendation permission, or final safety.
@@ -65,7 +65,7 @@ All Pydantic boundary models forbid extra fields. Lists and strings are bounded,
 | `POST /v1/assessments` | Create a `draft` assessment |
 | `POST /v1/assessments/{id}/image-assessment` | Validate, sanitize, assess, discard bytes, and return `ImageAssessmentResult` |
 | `PUT /v1/assessments/{id}/questionnaire` | Validate answers, run safety, and return `SafetyResult` |
-| `POST /v1/assessments/{id}/recommendation` | Generate guidance only when safety permission is `allowed` |
+| `POST /v1/assessments/{id}/recommendation` | Generate safety-shaped guidance unless permission is `blocked` |
 | `GET /v1/assessments/{id}` | Return normalized workflow state |
 | `POST /v1/referrals` | Preserve the existing prototype referral path |
 
@@ -84,9 +84,9 @@ draft
      -> assessment_completed
         -> questionnaire
            -> questionnaire_completed (routine / recommendation allowed)
-           -> professional_review_required (recommendation blocked)
-           -> urgent (escalation only)
-           -> emergency (escalation only)
+           -> professional_review_required (allowed or blocked by cause)
+           -> urgent (explanation and escalation only)
+           -> emergency (explanation and escalation only)
      -> retake_required
         -> image-assessment (replacement image)
 
@@ -123,7 +123,6 @@ Implemented codes include:
 - `ASSESSMENT_TIMEOUT`
 - `ASSESSMENT_OUTPUT_INVALID`
 - `RECOMMENDATION_BLOCKED`
-- `RED_FLAG_ESCALATION_REQUIRED`
 - `ASSESSMENT_NOT_FOUND`
 - `ASSESSMENT_STATE_CONFLICT`
 - `VALIDATION_ERROR`
@@ -153,18 +152,30 @@ The production mock does not capture provider inputs. Test instances may opt int
 
 1. **Emergency:** breathing difficulty; lip/tongue/throat swelling.
 2. **Urgent:** rapid spread, high fever, configured severe pain threshold, eye involvement, extensive blistering, possible infection, significant bleeding, open wound, or corresponding controlled visual safety signals.
-3. **Professional review:** uncertain/unsupported condition, low/unknown confidence, retake quality, persistent/recurrent concern, relevant “unsure” safety answer, fever/swelling requiring review, infant/unsupported scope.
+3. **Professional review:** uncertain/unsupported condition, low/unknown confidence, retake quality, relevant “unsure” safety answer, fever/swelling requiring review, infant/unsupported scope. Persistent or recurrent concern is retained as context but is not a review trigger by itself.
 4. **Routine:** no higher rule.
 
-Emergency and urgent results contain fixed backend-owned action messages and `escalation_only`; professional review is `blocked`; routine is `allowed`. The provider and recommendation LLM cannot override this result.
+Emergency and urgent results contain fixed backend-owned action messages and
+`escalation_only`; routine is `allowed`. Professional review is `allowed` for
+advisory causes such as low confidence or an `unsure` response, but `blocked`
+for hard assessment problems such as an uncertain/unsupported condition or a
+required image retake. The provider and recommendation LLM cannot override
+this result.
 
-Non-routine results also include deterministic `SafetyFeedback`: ordered trigger explanations, fixed safest-next-step actions, a treatment-guidance withholding reason, and a structured clinician-ready summary of the preliminary condition and reported questionnaire information. This feedback is backend-owned and does not call the recommendation LLM. The frontend presents the urgent/emergency warning first, followed by these explanations and a copyable summary.
+Non-routine results also include deterministic `SafetyFeedback`: ordered
+trigger explanations, fixed safest-next-step actions, a guidance-limitation
+reason, and a structured clinician-ready summary of the preliminary condition
+and reported questionnaire information. This feedback is backend-owned. When
+permission is not blocked, it is presented before the separately generated,
+safety-constrained recommendation context.
 
 ## 7. Recommendation Integration
 
-`RecommendationInput` now contains only:
+`RecommendationInput` contains only:
 
 - normalized condition/confidence/engine context;
+- controlled visual findings, alternative conditions, and whether more
+  information is needed;
 - strict questionnaire;
 - backend `SafetyResult`;
 - backend-selected allowed guidance level;
@@ -174,9 +185,13 @@ It forbids extra fields, so bytes, base64, paths, URLs, filenames, EXIF, and raw
 
 The service checks safety before building a prompt or calling `LLMClient`:
 
-- professional review raises `RECOMMENDATION_BLOCKED`;
-- urgent/emergency raises `RED_FLAG_ESCALATION_REQUIRED`;
-- routine calls the existing mock/Gemini/Cortex **text recommendation** client behavior.
+- hard-blocked professional review raises `RECOMMENDATION_BLOCKED`;
+- advisory professional review calls the provider, then constrains the output
+  to review-first cautious guidance;
+- urgent/emergency calls the provider for explanatory context, then forces an
+  urgent-referral action and removes all routine steps;
+- routine can include condition-specific product categories and a simple
+  morning/evening educational routine.
 
 No live image provider was added, and the recommendation component remains image-blind.
 
@@ -188,8 +203,9 @@ The existing Next.js reducer workflow was migrated rather than rebuilt:
 create -> select/preview -> image-assessment
   -> retake guidance
   OR preliminary qualitative result -> structured questionnaire
-     -> safety-first blocked/escalation result
-     OR allowed recommendation -> educational result
+     -> hard-blocked safety feedback
+     OR safety feedback + constrained recommendation
+     OR routine educational recommendation
 ```
 
 The UI:
@@ -198,7 +214,10 @@ The UI:
 - displays qualitative confidence only;
 - maps controlled image-quality issues to retake instructions;
 - shows emergency/urgent safety content before condition content;
-- does not render treatment-like sections when safety blocks recommendation;
+- renders deterministic safety feedback before any non-routine AI context;
+- does not render routine/product sections for urgent or emergency results;
+- requires explicit questionnaire answers and includes a clearly labeled
+  synthetic demo-answer shortcut for presentations;
 - stores only the assessment ID in session storage, never image data;
 - uses the shared backend error envelope through `ApiClientError`.
 
@@ -216,7 +235,8 @@ Backend tests use generated solid-color images only; no patient or dermatology i
 - provider replacement contract;
 - exact condition registry and strict/cross-field validation;
 - all emergency and urgent rules plus professional/routine branches;
-- recommendation LLM not called for blocked/escalation states;
+- recommendation LLM not called for hard-blocked states;
+- professional-review and escalation-only outputs constrained after generation;
 - image vectors rejected from recommendation input;
 - stable API error envelopes and invalid transitions;
 - complete routine mock assessment-to-recommendation flow;
@@ -236,7 +256,7 @@ IMAGE_ASSESSMENT_MAX_BYTES=8388608
 IMAGE_ASSESSMENT_MAX_PIXELS=20000000
 IMAGE_ASSESSMENT_MIN_SIDE=320
 IMAGE_ASSESSMENT_MAX_IMAGES=1
-SAFETY_POLICY_VERSION=v1
+SAFETY_POLICY_VERSION=v2
 SEVERE_PAIN_THRESHOLD=7
 ```
 

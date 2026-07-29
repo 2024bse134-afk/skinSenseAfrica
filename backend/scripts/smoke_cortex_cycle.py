@@ -109,7 +109,7 @@ async def run(image_path: Path) -> None:
 
         safety = questionnaire["safety"]
         recommendation = None
-        if safety["recommendation_permission"] == "allowed":
+        if safety["recommendation_permission"] != "blocked":
             recommendation = _require_success(
                 await client.post(
                     f"/v1/assessments/{assessment_id}/recommendation",

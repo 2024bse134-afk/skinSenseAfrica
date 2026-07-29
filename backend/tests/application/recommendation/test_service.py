@@ -7,7 +7,6 @@ from pydantic import ValidationError
 from app.application.recommendation.service import (
     RecommendationBlockedError,
     RecommendationUnavailableError,
-    RedFlagEscalationRequiredError,
     generate_recommendation,
     parse_llm_output,
 )
@@ -17,6 +16,7 @@ from app.domain.recommendation.models import (
     RecommendationInput,
     SkinContext,
 )
+from app.domain.recommendation.policy import decide_guidance
 from app.domain.questionnaire.models import Questionnaire
 from app.domain.safety.policy import evaluate_safety
 from app.infrastructure.llm.client import MockLLMClient
@@ -57,11 +57,19 @@ def recommendation_input(urgency: str = "routine", questionnaire=None) -> Recomm
         questionnaire_data["rapidly_spreading"] = "yes"
     elif urgency == "emergency":
         questionnaire_data["difficulty_breathing"] = "yes"
+    elif urgency == "blocked":
+        assessment_updates = {
+            "condition": "other_or_uncertain",
+            "confidence_level": "unknown",
+            "confidence_score": None,
+            "recommendation_status": "blocked",
+        }
 
     effective_questionnaire = Questionnaire.model_validate(questionnaire_data)
     assessment_result = make_assessment_result(**assessment_updates)
     safety_result = evaluate_safety(assessment_result, effective_questionnaire)
-    assert safety_result.urgency.value == urgency
+    expected_urgency = "professional_review" if urgency == "blocked" else urgency
+    assert safety_result.urgency.value == expected_urgency
 
     return RecommendationInput(
         assessment_id="asm-001",
@@ -69,14 +77,16 @@ def recommendation_input(urgency: str = "routine", questionnaire=None) -> Recomm
             condition=assessment_result.condition,
             confidence_level=assessment_result.confidence_level,
             confidence_score=assessment_result.confidence_score,
+            visual_findings=assessment_result.visual_findings,
+            alternative_conditions=assessment_result.alternative_conditions,
+            needs_more_information=assessment_result.needs_more_information,
             engine_version=assessment_result.engine_version,
         ),
         questionnaire=effective_questionnaire,
         safety=safety_result,
-        allowed_guidance_level=(
-            GuidanceLevel.CONDITION_SPECIFIC_GUIDANCE
-            if urgency == "routine"
-            else GuidanceLevel.PROFESSIONAL_REVIEW
+        allowed_guidance_level=decide_guidance(
+            assessment_result.confidence_level,
+            safety_result,
         ),
         skin_context=SkinContext(tone_group="melanin_rich"),
     )
@@ -104,18 +114,35 @@ def test_allowed_routine_recommendation_remains_operational(questionnaire) -> No
     assert result.safety.urgency.value == "routine"
 
 
-@pytest.mark.parametrize(
-    ("urgency", "expected"),
-    [
-        ("professional_review", RecommendationBlockedError),
-        ("urgent", RedFlagEscalationRequiredError),
-        ("emergency", RedFlagEscalationRequiredError),
-    ],
-)
-def test_safety_prevents_llm_call(questionnaire, urgency, expected) -> None:
+@pytest.mark.parametrize("urgency", ["professional_review", "urgent", "emergency"])
+def test_safety_shapes_the_llm_output_without_ending_showcase(
+    questionnaire, urgency
+) -> None:
     client = CountingLLM(response_text=valid_draft_json())
-    with pytest.raises(expected):
-        asyncio.run(generate_recommendation(recommendation_input(urgency, questionnaire), client))
+    result = asyncio.run(
+        generate_recommendation(recommendation_input(urgency, questionnaire), client)
+    )
+
+    assert client.calls == 1
+    if urgency in {"urgent", "emergency"}:
+        assert result.guidance_level is GuidanceLevel.URGENT_REFERRAL
+        assert result.draft.recommended_action.type == "referral"
+        assert result.draft.recommended_action.steps == []
+    else:
+        assert result.guidance_level is GuidanceLevel.PROFESSIONAL_REVIEW
+        assert result.draft.recommended_action.type == "professional_review"
+        assert result.draft.recommended_action.steps == ["cleanse gently"]
+
+
+def test_hard_block_still_prevents_llm_call(questionnaire) -> None:
+    client = CountingLLM(response_text=valid_draft_json())
+    with pytest.raises(RecommendationBlockedError):
+        asyncio.run(
+            generate_recommendation(
+                recommendation_input("blocked", questionnaire),
+                client,
+            )
+        )
     assert client.calls == 0
 
 

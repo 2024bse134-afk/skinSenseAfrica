@@ -64,7 +64,7 @@ async def main() -> None:
             urgency="routine",
             red_flags=[],
             recommendation_permission="allowed",
-            policy_version="v1",
+            policy_version="v2",
             action_message="Continue to educational guidance.",
         ),
         allowed_guidance_level=GuidanceLevel.CONDITION_SPECIFIC_GUIDANCE,

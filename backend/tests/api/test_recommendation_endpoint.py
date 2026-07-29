@@ -58,7 +58,7 @@ def test_routine_recommendation_endpoint_is_operational(questionnaire) -> None:
     app.dependency_overrides.clear()
 
 
-def test_professional_review_blocks_llm(questionnaire) -> None:
+def test_professional_review_generates_cautious_context(questionnaire) -> None:
     llm = CountingLLM()
     record = make_record(
         "asm-review",
@@ -68,13 +68,15 @@ def test_professional_review_blocks_llm(questionnaire) -> None:
     )
     client, _ = client_for(record, llm)
     response = client.post("/v1/assessments/asm-review/recommendation")
-    assert response.status_code == 409
-    assert response.json()["error"]["code"] == "RECOMMENDATION_BLOCKED"
-    assert llm.calls == 0
+    assert response.status_code == 200
+    assert response.json()["guidance_level"] == "professional_review"
+    assert response.json()["referral_required"] is True
+    assert response.json()["draft"]["recommended_action"]["type"] == "professional_review"
+    assert llm.calls == 1
     app.dependency_overrides.clear()
 
 
-def test_urgent_and_emergency_defensively_reject_recommendation(
+def test_urgent_and_emergency_generate_escalation_context(
     questionnaire_payload,
 ) -> None:
     for field in ("rapidly_spreading", "difficulty_breathing"):
@@ -84,11 +86,32 @@ def test_urgent_and_emergency_defensively_reject_recommendation(
         llm = CountingLLM()
         client, _ = client_for(make_record(f"asm-{field}", q), llm)
         response = client.post(f"/v1/assessments/asm-{field}/recommendation")
-        assert response.status_code == 409
-        assert response.json()["error"]["code"] == "RED_FLAG_ESCALATION_REQUIRED"
-        assert response.json()["error"]["details"]["urgency"] in {"urgent", "emergency"}
-        assert llm.calls == 0
+        assert response.status_code == 200
+        assert response.json()["guidance_level"] == "urgent_referral"
+        assert response.json()["draft"]["recommended_action"]["type"] == "referral"
+        assert response.json()["draft"]["recommended_action"]["steps"] == []
+        assert llm.calls == 1
         app.dependency_overrides.clear()
+
+
+def test_uncertain_condition_still_blocks_recommendation(questionnaire) -> None:
+    llm = CountingLLM()
+    record = make_record(
+        "asm-uncertain",
+        questionnaire,
+        condition="other_or_uncertain",
+        confidence_level="unknown",
+        confidence_score=None,
+        recommendation_status="blocked",
+    )
+    client, _ = client_for(record, llm)
+
+    response = client.post("/v1/assessments/asm-uncertain/recommendation")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "RECOMMENDATION_BLOCKED"
+    assert llm.calls == 0
+    app.dependency_overrides.clear()
 
 
 def test_not_ready_and_missing_use_stable_envelope(questionnaire) -> None:
