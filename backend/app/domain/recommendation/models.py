@@ -8,17 +8,15 @@ from datetime import datetime
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.domain.assessment.conditions import Condition
+from app.domain.assessment.models import ConfidenceLevel
+from app.domain.questionnaire.models import Questionnaire
+from app.domain.safety.models import SafetyResult
 
 
-class SupportedCondition(str, Enum):
-	"""Supported condition classes from the classifier output contract."""
-
-	ACNE = "acne"
-	ECZEMA_DERMATITIS = "eczema_dermatitis"
-	HYPERPIGMENTATION = "hyperpigmentation"
-	POSSIBLE_FUNGAL = "possible_fungal_infection"
-	OTHER_UNCERTAIN = "other_uncertain"
+SupportedCondition = Condition
 
 
 class GuidanceLevel(str, Enum):
@@ -41,48 +39,31 @@ class ClassificationResult(BaseModel):
 	predicted_at: datetime
 
 
-class Questionnaire(BaseModel):
-	"""Structured questionnaire inputs collected alongside image-based assessment."""
-
-	duration: str | None = None
-	itching: bool | None = None
-	pain_level: int | None = None
-	rapidly_spreading: bool | None = None
-	affected_area: str | None = None
-	fever: bool | None = None
-	swelling: bool | None = None
-	bleeding_or_open_wound: bool | None = None
-	eye_involvement: bool | None = None
-	previous_treatments: list[str] = Field(default_factory=list)
-	known_allergies: list[str] = Field(default_factory=list)
-	current_products: list[str] = Field(default_factory=list)
-
-	def has_emergency_red_flag(self) -> bool:
-		"""Evaluate emergency red-flag status via policy-layer rules."""
-		from app.domain.recommendation.policy import has_emergency_red_flag
-
-		return has_emergency_red_flag(self)
-
-	def has_clinical_red_flag(self) -> bool:
-		"""Evaluate clinical red-flag status via policy-layer rules."""
-		from app.domain.recommendation.policy import has_clinical_red_flag
-
-		return has_clinical_red_flag(self)
-
-
 class SkinContext(BaseModel):
 	"""User skin-context metadata used for safer and more relevant guidance framing."""
 
 	tone_group: Literal["melanin_rich", "user_selected_tone_group", "unspecified"] = "unspecified"
 
 
+class RecommendationAssessmentContext(BaseModel):
+	model_config = ConfigDict(extra="forbid")
+
+	condition: Condition
+	confidence_level: ConfidenceLevel
+	confidence_score: float | None = Field(default=None, ge=0.0, le=1.0)
+	engine_version: str
+
+
 class RecommendationInput(BaseModel):
-	"""Full recommendation use-case input contract for application orchestration."""
+	"""Image-free recommendation input assembled only by backend orchestration."""
+
+	model_config = ConfigDict(extra="forbid")
 
 	assessment_id: str
-	classifier: ClassificationResult
-	severity: str | None = None
+	assessment: RecommendationAssessmentContext
 	questionnaire: Questionnaire
+	safety: SafetyResult
+	allowed_guidance_level: GuidanceLevel
 	skin_context: SkinContext
 
 
@@ -111,11 +92,12 @@ class RecommendationResult(BaseModel):
 	"""Final backend-owned recommendation response contract returned to API layer."""
 
 	assessment_id: str
-	condition: SupportedCondition
-	confidence: float
+	condition: Condition
+	confidence_level: ConfidenceLevel
+	confidence_score: float | None
 	guidance_level: GuidanceLevel
 	referral_required: bool
-	urgency: str
+	safety: SafetyResult
 	model_version: str
 	prompt_version: str
 	disclaimer: str

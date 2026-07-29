@@ -37,7 +37,7 @@ export function ImageUploader({ onFileSelected, onValidationError, disabled = fa
         <div>
           <h2 className="text-lg font-semibold text-ink">Add a skin image</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Good lighting, a steady hand, and a focused image help the classifier work better.
+            Good lighting, a steady hand, and a focused image help the preliminary assessment.
             Avoid filters, shadows, and heavy zoom. Accepted formats: {getAllowedImageDescription()}.
           </p>
         </div>

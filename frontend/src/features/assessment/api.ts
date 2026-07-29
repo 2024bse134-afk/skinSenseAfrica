@@ -1,29 +1,28 @@
 import { getJson, postFormData, postJson, putJson } from '@/lib/api-client';
 import type {
   AssessmentDetail,
-  ClassifyAssessmentResponse,
   CreateAssessmentResponse,
+  ImageAssessmentResult,
   Questionnaire,
+  QuestionnaireResponse,
   RecommendationResult,
   ReferralRequest,
-  UploadAssessmentImageResponse,
 } from './types';
 
 export async function createAssessment(): Promise<CreateAssessmentResponse> {
   return postJson<CreateAssessmentResponse>('/v1/assessments', {});
 }
 
-export async function uploadAssessmentImage(
+export async function assessImage(
   assessmentId: string,
   image: File,
-): Promise<UploadAssessmentImageResponse> {
+): Promise<ImageAssessmentResult> {
   const formData = new FormData();
   formData.append('image', image);
-  return postFormData<UploadAssessmentImageResponse>(`/v1/assessments/${assessmentId}/image`, formData);
-}
-
-export async function classifyAssessment(assessmentId: string): Promise<ClassifyAssessmentResponse> {
-  return postJson<ClassifyAssessmentResponse>(`/v1/assessments/${assessmentId}/classify`, {});
+  return postFormData<ImageAssessmentResult>(
+    `/v1/assessments/${assessmentId}/image-assessment`,
+    formData,
+  );
 }
 
 export async function getAssessmentRecommendation(assessmentId: string) {
@@ -31,7 +30,7 @@ export async function getAssessmentRecommendation(assessmentId: string) {
 }
 
 export function saveQuestionnaire(assessmentId: string, questionnaire: Questionnaire) {
-  return putJson(`/v1/assessments/${assessmentId}/questionnaire`, questionnaire);
+  return putJson<QuestionnaireResponse>(`/v1/assessments/${assessmentId}/questionnaire`, questionnaire);
 }
 
 export function getAssessment(assessmentId: string) {

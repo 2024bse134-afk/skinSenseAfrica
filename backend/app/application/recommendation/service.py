@@ -19,11 +19,10 @@ from app.domain.recommendation.models import (
 	RecommendationResult,
 )
 from app.domain.recommendation.policy import (
-	decide_guidance,
-	derive_urgency,
 	is_referral_required,
 )
 from app.domain.recommendation.prompt_builder import PROMPT_VERSION, build_messages
+from app.domain.safety.models import RecommendationPermission, Urgency
 from app.infrastructure.llm.client import LLMClient, RecommendationLLMError
 
 
@@ -45,6 +44,14 @@ class RecommendationValidationError(Exception):
 
 class RecommendationUnavailableError(Exception):
 	"""Raised when recommendation generation fails after bounded retries."""
+
+
+class RecommendationBlockedError(Exception):
+	"""Raised before LLM invocation when backend safety blocks guidance."""
+
+
+class RedFlagEscalationRequiredError(Exception):
+	"""Raised when a recommendation is requested for urgent/emergency safety state."""
 
 
 def parse_llm_output(raw: str) -> RecommendationDraft:
@@ -125,11 +132,12 @@ def assemble_recommendation_result(
 
 	return RecommendationResult(
 		assessment_id=input.assessment_id,
-		condition=input.classifier.condition,
-		confidence=input.classifier.confidence,
+		condition=input.assessment.condition,
+		confidence_level=input.assessment.confidence_level,
+		confidence_score=input.assessment.confidence_score,
 		guidance_level=guidance_level,
 		referral_required=is_referral_required(guidance_level),
-		urgency=derive_urgency(guidance_level),
+		safety=input.safety,
 		model_version=model_version,
 		prompt_version=PROMPT_VERSION,
 		disclaimer=FIXED_DISCLAIMER,
@@ -144,7 +152,12 @@ async def generate_recommendation(
 ) -> RecommendationResult:
 	"""Generate recommendation result with one retry on LLM or parse failure."""
 
-	guidance_level = decide_guidance(input.classifier.confidence, input.questionnaire)
+	if input.safety.urgency in {Urgency.EMERGENCY, Urgency.URGENT}:
+		raise RedFlagEscalationRequiredError("RED_FLAG_ESCALATION_REQUIRED")
+	if input.safety.recommendation_permission is not RecommendationPermission.ALLOWED:
+		raise RecommendationBlockedError("RECOMMENDATION_BLOCKED")
+
+	guidance_level = input.allowed_guidance_level
 	messages = build_messages(input, guidance_level)
 
 	draft: RecommendationDraft | None = None
@@ -168,5 +181,5 @@ async def generate_recommendation(
 		input=input,
 		guidance_level=guidance_level,
 		draft=safe_draft,
-		model_version=input.classifier.model_version,
+		model_version=input.assessment.engine_version,
 	)

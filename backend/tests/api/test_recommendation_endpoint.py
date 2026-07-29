@@ -1,152 +1,107 @@
-from datetime import datetime, timezone
-
-from fastapi.testclient import TestClient
-
 from app.api.dependencies import get_assessment_repository, get_recommendation_llm_client
 from app.api.repository import AssessmentRecord, InMemoryAssessmentRepository
-from app.domain.recommendation.models import ClassificationResult, Questionnaire, SkinContext, SupportedCondition
+from app.domain.safety.policy import evaluate_safety
 from app.infrastructure.llm.client import MockLLMClient
 from app.main import app
+from tests.conftest import make_assessment_result
+from tests.http_client import ASGITestClient, async_dependency
 
 
-class _FailingMockLLMClient(MockLLMClient):
-    def __init__(self) -> None:
-        super().__init__(should_raise=True)
+class CountingLLM(MockLLMClient):
+    def __init__(self):
+        super().__init__()
+        self.calls = 0
+
+    async def generate(self, messages):
+        self.calls += 1
+        return await super().generate(messages)
 
 
-def _classification(confidence: float = 0.9) -> ClassificationResult:
-    return ClassificationResult(
-        condition=SupportedCondition.ACNE,
-        confidence=confidence,
-        model_version="clf-v3",
-        inference_ms=120,
-        predicted_at=datetime.now(timezone.utc),
-    )
-
-
-def _make_record(
-    assessment_id: str,
-    status: str,
-    questionnaire: Questionnaire | None,
-    confidence: float = 0.9,
-) -> AssessmentRecord:
+def make_record(assessment_id, questionnaire, **assessment_updates):
+    assessment = make_assessment_result(**assessment_updates)
+    safety = evaluate_safety(assessment, questionnaire)
     return AssessmentRecord(
         id=assessment_id,
-        status=status,
-        classification=_classification(confidence=confidence),
+        status={
+            "routine": "questionnaire_completed",
+            "professional_review": "professional_review_required",
+            "urgent": "urgent",
+            "emergency": "emergency",
+        }[safety.urgency.value],
+        assessment=assessment,
         questionnaire=questionnaire,
-        skin_context=SkinContext(tone_group="melanin_rich"),
+        safety=safety,
     )
 
 
-def _make_client(repo: InMemoryAssessmentRepository, llm_client: MockLLMClient) -> TestClient:
-    app.dependency_overrides[get_assessment_repository] = lambda: repo
-    app.dependency_overrides[get_recommendation_llm_client] = lambda: llm_client
-    return TestClient(app)
+def client_for(record, llm):
+    repository = InMemoryAssessmentRepository()
+    repository.upsert(record)
+    app.dependency_overrides[get_assessment_repository] = async_dependency(repository)
+    app.dependency_overrides[get_recommendation_llm_client] = async_dependency(llm)
+    return ASGITestClient(), repository
 
 
-def test_create_recommendation_happy_path() -> None:
-    repo = InMemoryAssessmentRepository()
-    repo.upsert(
-        _make_record(
-            assessment_id="asm-100",
-            status="questionnaire_completed",
-            questionnaire=Questionnaire(itching=True, pain_level=2),
-            confidence=0.9,
-        )
-    )
-
-    client = _make_client(repo, MockLLMClient())
-    response = client.post("/v1/assessments/asm-100/recommendation")
-
+def test_routine_recommendation_endpoint_is_operational(questionnaire) -> None:
+    llm = CountingLLM()
+    client, repository = client_for(make_record("asm-routine", questionnaire), llm)
+    response = client.post("/v1/assessments/asm-routine/recommendation")
     assert response.status_code == 200
-    body = response.json()
-    assert body["assessment_id"] == "asm-100"
-    assert body["condition"] == "acne"
-    assert body["guidance_level"] == "condition_specific_guidance"
+    assert response.json()["confidence_level"] == "high"
+    assert response.json()["safety"]["urgency"] == "routine"
+    assert llm.calls == 1
+    assert repository.get("asm-routine").status == "completed"
 
-    persisted = repo.get("asm-100")
-    assert persisted is not None
-    assert persisted.status == "completed"
-
+    repeated = client.post("/v1/assessments/asm-routine/recommendation")
+    assert repeated.status_code == 200
+    assert llm.calls == 1
     app.dependency_overrides.clear()
 
 
-def test_create_recommendation_wrong_status_returns_conflict() -> None:
-    repo = InMemoryAssessmentRepository()
-    repo.upsert(
-        _make_record(
-            assessment_id="asm-101",
-            status="classified",
-            questionnaire=None,
-            confidence=0.9,
-        )
+def test_professional_review_blocks_llm(questionnaire) -> None:
+    llm = CountingLLM()
+    record = make_record(
+        "asm-review",
+        questionnaire,
+        confidence_level="low",
+        confidence_score=0.3,
     )
-
-    client = _make_client(repo, MockLLMClient())
-    response = client.post("/v1/assessments/asm-101/recommendation")
-
+    client, _ = client_for(record, llm)
+    response = client.post("/v1/assessments/asm-review/recommendation")
     assert response.status_code == 409
+    assert response.json()["error"]["code"] == "RECOMMENDATION_BLOCKED"
+    assert llm.calls == 0
     app.dependency_overrides.clear()
 
 
-def test_create_recommendation_llm_unavailable_contract() -> None:
-    repo = InMemoryAssessmentRepository()
-    repo.upsert(
-        _make_record(
-            assessment_id="asm-102",
-            status="questionnaire_completed",
-            questionnaire=Questionnaire(itching=True),
-            confidence=0.9,
-        )
-    )
+def test_urgent_and_emergency_defensively_reject_recommendation(
+    questionnaire_payload,
+) -> None:
+    for field in ("rapidly_spreading", "difficulty_breathing"):
+        from app.domain.questionnaire.models import Questionnaire
 
-    client = _make_client(repo, _FailingMockLLMClient())
-    response = client.post("/v1/assessments/asm-102/recommendation")
-
-    assert response.status_code == 503
-    assert response.json() == {
-        "error": {
-            "code": "RECOMMENDATION_UNAVAILABLE",
-            "message": "A safe recommendation could not be generated.",
-            "retryable": True,
-            "details": None,
-        }
-    }
-    app.dependency_overrides.clear()
+        q = Questionnaire.model_validate({**questionnaire_payload, field: "yes"})
+        llm = CountingLLM()
+        client, _ = client_for(make_record(f"asm-{field}", q), llm)
+        response = client.post(f"/v1/assessments/asm-{field}/recommendation")
+        assert response.status_code == 409
+        assert response.json()["error"]["code"] == "RED_FLAG_ESCALATION_REQUIRED"
+        assert response.json()["error"]["details"]["urgency"] in {"urgent", "emergency"}
+        assert llm.calls == 0
+        app.dependency_overrides.clear()
 
 
-def test_create_recommendation_nonexistent_assessment_returns_404() -> None:
-    repo = InMemoryAssessmentRepository()
-    client = _make_client(repo, MockLLMClient())
+def test_not_ready_and_missing_use_stable_envelope(questionnaire) -> None:
+    repository = InMemoryAssessmentRepository()
+    draft = repository.create()
+    app.dependency_overrides[get_assessment_repository] = async_dependency(repository)
+    app.dependency_overrides[get_recommendation_llm_client] = async_dependency(CountingLLM())
+    client = ASGITestClient()
 
-    response = client.post("/v1/assessments/missing/recommendation")
-
-    assert response.status_code == 404
-    app.dependency_overrides.clear()
-
-
-def test_create_recommendation_referral_required_updates_professional_review_status() -> None:
-    repo = InMemoryAssessmentRepository()
-    repo.upsert(
-        _make_record(
-            assessment_id="asm-103",
-            status="questionnaire_completed",
-            questionnaire=Questionnaire(swelling=True),
-            confidence=0.95,
-        )
-    )
-
-    client = _make_client(repo, MockLLMClient())
-    response = client.post("/v1/assessments/asm-103/recommendation")
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["referral_required"] is True
-    assert body["guidance_level"] == "professional_review"
-
-    persisted = repo.get("asm-103")
-    assert persisted is not None
-    assert persisted.status == "professional_review_required"
-
+    conflict = client.post(f"/v1/assessments/{draft.id}/recommendation")
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "ASSESSMENT_STATE_CONFLICT"
+    missing = client.get("/v1/assessments/missing")
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "ASSESSMENT_NOT_FOUND"
     app.dependency_overrides.clear()

@@ -6,5 +6,5 @@ export const API_BASE_URL =
 
 export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 export const ACCEPTED_IMAGE_ATTR = ACCEPTED_IMAGE_TYPES.join(',');
-export const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
-export const MAX_IMAGE_SIZE_LABEL = '12 MB';
+export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+export const MAX_IMAGE_SIZE_LABEL = '8 MB';

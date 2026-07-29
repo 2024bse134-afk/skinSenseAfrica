@@ -14,10 +14,13 @@ SYSTEM_PROMPT_V1 = """You are the controlled recommendation component of SkinSen
 
 _CONDITION_DISPLAY_LABELS = {
     "acne": "Acne",
-    "eczema_dermatitis": "Eczema / Dermatitis",
-    "hyperpigmentation": "Hyperpigmentation",
-    "possible_fungal_infection": "Possible fungal infection",
-    "other_uncertain": "Other / uncertain",
+    "eczema": "Eczema",
+    "fungal_infection": "Possible fungal infection",
+    "scabies": "Possible scabies",
+    "impetigo": "Possible impetigo",
+    "psoriasis": "Possible psoriasis",
+    "folliculitis": "Possible folliculitis",
+    "other_or_uncertain": "Other / uncertain",
 }
 
 
@@ -30,22 +33,27 @@ def _format_questionnaire(input_data: RecommendationInput) -> list[str]:
         ("itching", q.itching),
         ("pain_level", q.pain_level),
         ("rapidly_spreading", q.rapidly_spreading),
-        ("affected_area", q.affected_area),
+        ("affected_body_area", q.affected_body_area),
         ("fever", q.fever),
+        ("high_fever", q.high_fever),
         ("swelling", q.swelling),
-        ("bleeding_or_open_wound", q.bleeding_or_open_wound),
+        ("bleeding", q.bleeding),
+        ("blistering", q.blistering),
+        ("open_wound", q.open_wound),
         ("eye_involvement", q.eye_involvement),
-        ("previous_treatments", q.previous_treatments),
+        ("possible_infection", q.possible_infection),
+        ("previous_treatment", q.previous_treatment),
         ("known_allergies", q.known_allergies),
         ("current_products", q.current_products),
+        ("age_group", q.age_group),
+        ("recurrent", q.recurrent),
     ]
 
     for key, value in field_order:
-        if value is None:
-            continue
         if isinstance(value, list) and len(value) == 0:
             continue
-        lines.append(f"- {key}: {value}")
+        rendered = value.value if hasattr(value, "value") else value
+        lines.append(f"- {key}: {rendered}")
 
     return lines
 
@@ -53,7 +61,7 @@ def _format_questionnaire(input_data: RecommendationInput) -> list[str]:
 def build_user_message(input: RecommendationInput, guidance_level: GuidanceLevel) -> str:
     """Build the user prompt content for RecommendationDraft generation only."""
 
-    condition_value = input.classifier.condition.value
+    condition_value = input.assessment.condition.value
     condition_label = _CONDITION_DISPLAY_LABELS.get(condition_value, condition_value)
 
     lines: list[str] = [

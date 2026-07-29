@@ -10,12 +10,10 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-from app.domain.recommendation.models import (
-    ClassificationResult,
-    Questionnaire,
-    RecommendationResult,
-    SkinContext,
-)
+from app.domain.assessment.models import ImageAssessmentResult
+from app.domain.questionnaire.models import Questionnaire
+from app.domain.recommendation.models import RecommendationResult, SkinContext
+from app.domain.safety.models import SafetyResult
 
 
 class AssessmentRecord(BaseModel):
@@ -23,8 +21,9 @@ class AssessmentRecord(BaseModel):
 
     id: str
     status: str
-    classification: ClassificationResult | None = None
+    assessment: ImageAssessmentResult | None = None
     questionnaire: Questionnaire | None = None
+    safety: SafetyResult | None = None
     skin_context: SkinContext = Field(default_factory=SkinContext)
     recommendation: RecommendationResult | None = None
 
@@ -34,8 +33,6 @@ class InMemoryAssessmentRepository:
 
     def __init__(self) -> None:
         self._store: Dict[str, AssessmentRecord] = {}
-        # Uploads are deliberately transient and are not part of AssessmentRecord.
-        self._images: Dict[str, tuple[bytes, str]] = {}
 
     def get(self, assessment_id: str) -> AssessmentRecord | None:
         return self._store.get(assessment_id)
@@ -48,35 +45,40 @@ class InMemoryAssessmentRepository:
         self.upsert(record)
         return record
 
-    def save_image(self, assessment_id: str, image: bytes, content_type: str) -> AssessmentRecord | None:
-        record = self._store.get(assessment_id)
-        if record is None:
-            return None
-        self._images[assessment_id] = (image, content_type)
-        record.status = "image_uploaded"
-        return record
-
-    def get_image(self, assessment_id: str) -> tuple[bytes, str] | None:
-        return self._images.get(assessment_id)
-
-    def save_classification(
-        self, assessment_id: str, classification: ClassificationResult
+    def save_assessment(
+        self, assessment_id: str, assessment: ImageAssessmentResult
     ) -> AssessmentRecord | None:
         record = self._store.get(assessment_id)
         if record is None:
             return None
-        record.classification = classification
-        record.status = "classified"
+        record.assessment = assessment
+        record.questionnaire = None
+        record.safety = None
+        record.recommendation = None
+        record.status = (
+            "retake_required"
+            if assessment.assessment_status.value == "retake_required"
+            else "assessment_completed"
+        )
         return record
 
     def save_questionnaire(
-        self, assessment_id: str, questionnaire: Questionnaire
+        self,
+        assessment_id: str,
+        questionnaire: Questionnaire,
+        safety: SafetyResult,
     ) -> AssessmentRecord | None:
         record = self._store.get(assessment_id)
         if record is None:
             return None
         record.questionnaire = questionnaire
-        record.status = "questionnaire_completed"
+        record.safety = safety
+        record.status = {
+            "emergency": "emergency",
+            "urgent": "urgent",
+            "professional_review": "professional_review_required",
+            "routine": "questionnaire_completed",
+        }[safety.urgency.value]
         return record
 
     def save_recommendation(

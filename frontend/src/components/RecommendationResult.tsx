@@ -7,7 +7,6 @@ import { requestReferral } from '@/features/assessment/api';
 import type { RecommendationResult as Recommendation } from '@/features/assessment/types';
 
 const label = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
-const confidenceBand = (confidence: number) => confidence < 0.6 ? 'limited confidence' : confidence < 0.8 ? 'moderate confidence' : 'higher confidence';
 
 export function RecommendationResult({ recommendation }: { recommendation: Recommendation }) {
   const [showReferral, setShowReferral] = useState(false);
@@ -28,7 +27,7 @@ export function RecommendationResult({ recommendation }: { recommendation: Recom
   }
   return <>
     <section className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
-      <div className={referral || needsRetake ? 'rounded-2xl bg-amber-50 p-5' : ''}><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Educational assessment</p><h1 className="mt-2 text-3xl font-semibold text-ink">{label(recommendation.condition)}</h1><p className="mt-2 text-sm text-slate-700"><strong>{confidenceBand(recommendation.confidence)}</strong> ({Math.round(recommendation.confidence * 100)}%). This estimate is not a diagnosis.</p>{needsRetake ? <><p className="mt-4 text-sm leading-6 text-slate-700">The image did not provide enough clarity for reliable guidance. A clearer, well-lit photo may help.</p><Link href={`/assessment/${recommendation.assessment_id}`} className="mt-4 inline-block rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white">Retake photo</Link></> : null}{referral ? <button type="button" onClick={() => setShowReferral(true)} className="mt-5 rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white">Request professional review</button> : null}</div>
+      <div className={referral || needsRetake ? 'rounded-2xl bg-amber-50 p-5' : ''}><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Preliminary assessment</p><h1 className="mt-2 text-3xl font-semibold text-ink">{label(recommendation.condition)}</h1><p className="mt-2 text-sm text-slate-700"><strong>{label(recommendation.confidence_level)} confidence</strong>. This estimate is not a diagnosis.</p>{needsRetake ? <><p className="mt-4 text-sm leading-6 text-slate-700">The image did not provide enough clarity for reliable guidance. A clearer, well-lit photo may help.</p><Link href={`/assessment/${recommendation.assessment_id}`} className="mt-4 inline-block rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white">Retake photo</Link></> : null}{referral ? <button type="button" onClick={() => setShowReferral(true)} className="mt-5 rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white">Request professional review</button> : null}</div>
       <Block title="What this may mean"><p>{recommendation.draft.explanation}</p></Block>
       <Block title="Skin-tone considerations"><List items={recommendation.draft.skin_tone_considerations} /></Block>
       <Block title={referral ? 'Why professional review is recommended' : 'Suggested next steps'}>{referral && recommendation.draft.recommended_action.referral_reason ? <p>{recommendation.draft.recommended_action.referral_reason}</p> : <List items={recommendation.draft.recommended_action.steps} />}</Block>

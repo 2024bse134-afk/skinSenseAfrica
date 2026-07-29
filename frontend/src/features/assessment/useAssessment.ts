@@ -1,13 +1,15 @@
 'use client';
 
 import { useReducer } from 'react';
-import type { ClassificationResult, Questionnaire, SkinContext } from './types';
+import type { ImageAssessmentResult, Questionnaire, SafetyResult, SkinContext } from './types';
 
 export type AssessmentPhase =
   | 'idle'
   | 'selectingImage'
   | 'uploading'
-  | 'classifying'
+  | 'assessingImage'
+  | 'assessmentReady'
+  | 'retakeRequired'
   | 'collectingSymptoms'
   | 'generatingRecommendation'
   | 'completed'
@@ -20,8 +22,9 @@ export interface AssessmentFlowState {
     assessmentId: string | null;
     imageFile: File | null;
     imagePreviewUrl: string | null;
-    classificationResult: ClassificationResult | null;
+    assessmentResult: ImageAssessmentResult | null;
     questionnaire: Questionnaire | null;
+    safety: SafetyResult | null;
     skinContext: SkinContext | null;
     error: string | null;
   };
@@ -34,15 +37,18 @@ export type AssessmentAction =
   | { type: 'selectImage'; file: File; previewUrl: string }
   | { type: 'clearImage' }
   | { type: 'startUploading' }
-  | { type: 'startClassifying' }
+  | { type: 'startAssessingImage' }
+  | { type: 'markAssessmentReady' }
+  | { type: 'markRetakeRequired' }
   | { type: 'startCollectingSymptoms' }
   | { type: 'startGeneratingRecommendation' }
-  | { type: 'markCompleted'; classificationResult?: ClassificationResult }
+  | { type: 'markCompleted' }
   | { type: 'markRequiresReview' }
   | { type: 'markFailed'; error: string }
   | { type: 'setQuestionnaire'; questionnaire: Questionnaire }
   | { type: 'setSkinContext'; skinContext: SkinContext }
-  | { type: 'setClassificationResult'; classificationResult: ClassificationResult }
+  | { type: 'setAssessmentResult'; assessmentResult: ImageAssessmentResult }
+  | { type: 'setSafety'; safety: SafetyResult }
   | { type: 'clearError' };
 
 function createInitialState(assessmentId: string | null = null): AssessmentFlowState {
@@ -52,8 +58,9 @@ function createInitialState(assessmentId: string | null = null): AssessmentFlowS
       assessmentId,
       imageFile: null,
       imagePreviewUrl: null,
-      classificationResult: null,
+      assessmentResult: null,
       questionnaire: null,
+      safety: null,
       skinContext: null,
       error: null,
     },
@@ -100,14 +107,20 @@ function assessmentReducer(state: AssessmentFlowState, action: AssessmentAction)
           ...state.data,
           imageFile: null,
           imagePreviewUrl: null,
-          classificationResult: null,
+          assessmentResult: null,
+          questionnaire: null,
+          safety: null,
           error: null,
         },
       };
     case 'startUploading':
       return { ...state, phase: 'uploading', data: { ...state.data, error: null } };
-    case 'startClassifying':
-      return { ...state, phase: 'classifying', data: { ...state.data, error: null } };
+    case 'startAssessingImage':
+      return { ...state, phase: 'assessingImage', data: { ...state.data, error: null } };
+    case 'markAssessmentReady':
+      return { ...state, phase: 'assessmentReady', data: { ...state.data, error: null } };
+    case 'markRetakeRequired':
+      return { ...state, phase: 'retakeRequired', data: { ...state.data, error: null } };
     case 'startCollectingSymptoms':
       return { ...state, phase: 'collectingSymptoms', data: { ...state.data, error: null } };
     case 'startGeneratingRecommendation':
@@ -118,7 +131,6 @@ function assessmentReducer(state: AssessmentFlowState, action: AssessmentAction)
         phase: 'completed',
         data: {
           ...state.data,
-          classificationResult: action.classificationResult ?? state.data.classificationResult,
           error: null,
         },
       };
@@ -130,14 +142,16 @@ function assessmentReducer(state: AssessmentFlowState, action: AssessmentAction)
       return { ...state, data: { ...state.data, questionnaire: action.questionnaire } };
     case 'setSkinContext':
       return { ...state, data: { ...state.data, skinContext: action.skinContext } };
-    case 'setClassificationResult':
+    case 'setAssessmentResult':
       return {
         ...state,
         data: {
           ...state.data,
-          classificationResult: action.classificationResult,
+          assessmentResult: action.assessmentResult,
         },
       };
+    case 'setSafety':
+      return { ...state, data: { ...state.data, safety: action.safety } };
     case 'clearError':
       return { ...state, data: { ...state.data, error: null } };
     default:

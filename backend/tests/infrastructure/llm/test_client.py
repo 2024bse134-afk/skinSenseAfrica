@@ -39,7 +39,7 @@ def test_get_llm_client_returns_mock_for_mock_provider() -> None:
     assert isinstance(client, MockLLMClient)
 
 
-def test_real_client_wraps_timeout_error() -> None:
+def test_real_client_wraps_timeout_error(monkeypatch) -> None:
     client = GeminiRecommendationClient(
         api_key="secret-key",
         model="gemini-1.5-flash",
@@ -50,6 +50,11 @@ def test_real_client_wraps_timeout_error() -> None:
         raise TimeoutError("simulated timeout")
 
     client._execute_request = raise_timeout  # type: ignore[method-assign]
+
+    async def run_inline(function, *args):
+        return function(*args)
+
+    monkeypatch.setattr(asyncio, "to_thread", run_inline)
 
     with pytest.raises(RecommendationLLMError, match="timed out"):
         asyncio.run(
