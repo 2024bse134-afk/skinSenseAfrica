@@ -71,44 +71,29 @@ export default function LandingPage() {
           <div className="pointer-events-none absolute right-[-9rem] top-4 h-80 w-80 rounded-full bg-[#f6d8b7]/40 blur-3xl" />
 
           <div className="ss-container relative grid min-h-[calc(100vh-72px)] items-center gap-12 py-12 lg:grid-cols-[1.06fr_.94fr] lg:gap-20 lg:py-20">
-            <div className="max-w-2xl">
-              <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-moss/15 bg-white/75 px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-moss shadow-sm">
-                <Icon name="sparkles" className="h-4 w-4" />
-                Built for melanin-rich skin
+            <div className="max-w-2xl py-10 lg:pt-16 lg:pb-24">
+              <div className="mb-8 inline-flex items-center gap-2 rounded-full bg-pillBg px-4 py-1.5 text-sm font-semibold text-pillText">
+                <span className="h-2 w-2 rounded-full bg-pillText" />
+                SkinSense Africa
               </div>
-              <h1 className="ss-title">
-                Skin insight that
-                <span className="relative mx-2 inline-block italic text-moss">
-                  explains
-                  <svg
-                    aria-hidden="true"
-                    className="absolute -bottom-2 left-0 h-3 w-full text-coral/60"
-                    viewBox="0 0 180 12"
-                    preserveAspectRatio="none"
-                  >
-                    <path d="M2 9C42 2 115 2 178 7" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                  </svg>
-                </span>
-                itself.
+              <h1 className="font-display text-5xl font-bold tracking-tight text-ink md:text-7xl lg:text-[84px] leading-tight mt-4">
+                Smarter skin<br />health guidance.
               </h1>
-              <p className="mt-7 max-w-xl text-base leading-8 text-forest/68 sm:text-lg">
-                {APP_TAGLINE} Upload one image, answer a focused safety check,
-                and see the visual clues and context behind your educational
-                guidance.
+              <p className="mt-6 max-w-xl text-lg leading-8 text-forest/70 md:text-xl md:leading-9">
+                AI-assisted skin screening and educational guidance designed with melanin-rich skin in mind.
               </p>
 
-              <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center">
                 <button
                   type="button"
                   onClick={handleStartAssessment}
                   disabled={isStarting}
-                  className="ss-button-accent min-w-52 px-6"
+                  className="rounded-full bg-primary px-8 py-3.5 font-bold text-white transition-opacity hover:opacity-90 w-full sm:w-auto text-lg shadow-lg"
                 >
-                  {isStarting ? 'Opening assessment…' : 'Start skin assessment'}
-                  {!isStarting ? <Icon name="arrow-right" className="h-4 w-4" /> : null}
+                  {isStarting ? 'Opening assessment…' : 'Start Skin Screening'}
                 </button>
-                <a href="#how-it-works" className="ss-button-secondary px-6">
-                  See how it works
+                <a href="#how-it-works" className="font-bold text-pillText px-6 py-3.5 hover:underline text-lg">
+                  Learn More
                 </a>
               </div>
 
@@ -120,15 +105,6 @@ export default function LandingPage() {
                   {error}
                 </p>
               ) : null}
-
-              <div className="mt-9 flex flex-col gap-3 border-t border-forest/10 pt-6 sm:flex-row sm:flex-wrap sm:gap-x-6">
-                {trustPoints.map((point) => (
-                  <span key={point.label} className="inline-flex items-center gap-2 text-xs font-semibold text-forest/60">
-                    <Icon name={point.icon} className="h-4 w-4 text-moss" />
-                    {point.label}
-                  </span>
-                ))}
-              </div>
             </div>
 
             <HeroVisual />
@@ -215,58 +191,13 @@ export default function LandingPage() {
 
 function HeroVisual() {
   return (
-    <div className="relative mx-auto hidden w-full max-w-[520px] lg:block">
-      <div className="absolute -left-8 top-20 z-10 ss-float rounded-2xl border border-white/70 bg-white/90 px-4 py-3 shadow-lift backdrop-blur">
-        <p className="flex items-center gap-2 text-xs font-bold text-forest">
-          <span className="grid h-7 w-7 place-items-center rounded-full bg-sage text-moss">
-            <Icon name="shield" className="h-4 w-4" />
-          </span>
-          Safety checked first
-        </p>
-      </div>
-      <div className="absolute -right-5 bottom-20 z-10 rounded-2xl border border-white/70 bg-white/90 px-4 py-3 shadow-lift backdrop-blur">
-        <p className="ss-kicker">Image privacy</p>
-        <p className="mt-1 text-xs font-bold text-forest">Not retained</p>
-      </div>
-
-      <div className="relative ml-auto w-[88%] rotate-[1.5deg] rounded-[36px] border border-white/80 bg-[#e6eee8] p-3 shadow-[0_38px_100px_rgba(14,59,54,.2)]">
-        <div className="overflow-hidden rounded-[28px] bg-forest">
-          <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-[#91d4bd]" />
-              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/70">Assessment preview</span>
-            </div>
-            <Icon name="sparkles" className="h-4 w-4 text-[#f2c75c]" />
-          </div>
-          <div className="relative aspect-[4/3] overflow-hidden bg-[radial-gradient(circle_at_30%_22%,#e8b795_0,transparent_18%),radial-gradient(circle_at_58%_52%,#9b4e45_0,transparent_5%),radial-gradient(circle_at_63%_60%,#c97869_0,transparent_3%),linear-gradient(135deg,#d9a783,#b87568)]">
-            <div className="absolute inset-0 opacity-40 [background-image:radial-gradient(circle_at_center,transparent_0,rgba(14,59,54,.5)_100%)]" />
-            <div className="absolute left-[39%] top-[37%] h-24 w-24 rounded-full border border-white/80">
-              <span className="absolute -left-1 -top-1 h-3 w-3 rounded-full border-2 border-white bg-coral" />
-              <span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-white bg-coral" />
-            </div>
-            <div className="absolute bottom-4 left-4 rounded-full bg-forest/70 px-3 py-1.5 text-[10px] font-bold text-white backdrop-blur">
-              Controlled visual findings
-            </div>
-          </div>
-          <div className="p-6">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#91d4bd]">Preliminary pattern</p>
-                <p className="mt-2 font-display text-3xl text-white">Explained, not asserted.</p>
-              </div>
-              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-bold text-white/75">
-                AI + safety
-              </span>
-            </div>
-            <div className="mt-6 grid grid-cols-3 gap-2">
-              {['Visual clues', 'Alternatives', 'Next steps'].map((item) => (
-                <div key={item} className="rounded-xl bg-white/[0.07] px-3 py-3 text-center text-[10px] font-semibold text-white/65">
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+    <div className="relative mx-auto hidden w-full lg:block lg:pl-10">
+      <div className="relative aspect-[16/16] w-full overflow-hidden rounded-[3rem] bg-forest/5 shadow-[0_32px_80px_-16px_rgba(0,0,0,0.15)]">
+        <img
+          src="/hero.png"
+          alt="Smiling clinic worker"
+          className="absolute inset-0 h-full w-full object-cover object-top"
+        />
       </div>
     </div>
   );

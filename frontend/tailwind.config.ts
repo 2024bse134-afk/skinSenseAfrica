@@ -14,6 +14,9 @@ const config: Config = {
         sage: '#DDEBE3',
         coral: '#DF6A4A',
         sun: '#F2C75C',
+        primary: '#22c55e', // bright green for CTA
+        pillText: '#3b82f6', // blue text
+        pillBg: '#eff6ff', // light blue bg
       },
       boxShadow: {
         soft: '0 18px 55px rgba(14, 59, 54, 0.09)',

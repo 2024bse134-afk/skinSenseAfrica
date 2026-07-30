@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const backendApiUrl = (
-  process.env.BACKEND_API_URL ?? 'http://127.0.0.1:8000'
+  process.env.BACKEND_API_URL ?? 'https://skinsense-backend-240757536793.us-central1.run.app'
 ).replace(/\/+$/, '');
 
 const nextConfig = {
