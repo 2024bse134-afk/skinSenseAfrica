@@ -23,12 +23,12 @@ const journey = [
   {
     number: '02',
     title: 'Add the human context',
-    text: 'A short, structured questionnaire checks symptoms and urgent warning signs.',
+    text: 'Five follow-ups adapt to the image result and check symptoms and warning signs.',
   },
   {
     number: '03',
     title: 'Understand the result',
-    text: 'See what the AI noticed, what else it considered, and safety-shaped next steps.',
+    text: 'Get a clear three-part report: what it may be, what to do, and when to get help.',
   },
 ];
 

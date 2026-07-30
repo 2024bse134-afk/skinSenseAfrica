@@ -225,6 +225,7 @@ export default function AssessmentImagePage() {
             <ProcessingState mode={isWorking ? 'assessment' : 'recommendation'} />
           ) : phase === 'collectingSymptoms' ? (
             <QuestionnaireStep
+              assessment={assessment!}
               onComplete={handleQuestionnaireComplete}
               isSaving={isSavingQuestionnaire}
             />

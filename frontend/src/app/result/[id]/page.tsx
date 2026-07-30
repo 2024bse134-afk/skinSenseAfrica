@@ -27,8 +27,6 @@ export default function ResultPage() {
 
   const safety = assessment?.safety;
   const hardBlocked = safety?.recommendation_permission === 'blocked';
-  const safetyShapedRecommendation =
-    safety && safety.urgency !== 'routine' && assessment?.recommendation;
 
   return (
     <div className="min-h-screen">
@@ -57,30 +55,10 @@ export default function ResultPage() {
           ) : hardBlocked && safety ? (
             <SafetyFeedbackResult assessment={assessment} />
           ) : assessment.recommendation ? (
-            <div className="space-y-6">
-              {safetyShapedRecommendation ? (
-                <>
-                  <SafetyFeedbackResult assessment={assessment} embedded />
-                  <section className="flex flex-col gap-4 rounded-[24px] border border-sky-200 bg-sky-50 p-5 sm:flex-row sm:items-center">
-                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-sky-100 text-sky-800">
-                      <Icon name="sparkles" className="h-5 w-5" />
-                    </span>
-                    <div>
-                      <p className="text-sm font-bold text-sky-950">
-                        AI-generated context continues below
-                      </p>
-                      <p className="mt-1 text-xs leading-6 text-sky-900/75">
-                        The deterministic safety result shaped what the recommendation engine could provide; it did not erase the explanation.
-                      </p>
-                    </div>
-                  </section>
-                </>
-              ) : null}
-              <RecommendationResult
-                recommendation={assessment.recommendation}
-                assessment={assessment.assessment}
-              />
-            </div>
+            <RecommendationResult
+              recommendation={assessment.recommendation}
+              assessment={assessment.assessment}
+            />
           ) : safety && safety.urgency !== 'routine' ? (
             <SafetyFeedbackResult assessment={assessment} />
           ) : (
