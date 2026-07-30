@@ -3,7 +3,9 @@ import '../styles/globals.css';
 
 export const metadata: Metadata = {
   title: 'SkinSense Africa',
-  description: 'Educational skin screening for melanin-rich skin tones.',
+  description: 'Explainable AI-assisted skin screening designed with melanin-rich skin tones in mind.',
+  applicationName: 'SkinSense Africa',
+  themeColor: '#F8F6EF',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

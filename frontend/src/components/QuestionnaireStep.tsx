@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Icon } from '@/components/Icons';
 import type { Answer, Questionnaire } from '@/features/assessment/types';
 
 type QuestionnaireDraft = {
@@ -84,16 +85,18 @@ const questions: Question[] = [
   { key: 'age_group', title: 'What is your age group?', description: 'This helps identify concerns outside the prototype scope.', kind: 'age' },
 ];
 
-const answerOptions: { value: Answer; label: string }[] = [
-  { value: 'yes', label: 'Yes' },
-  { value: 'no', label: 'No' },
-  { value: 'unsure', label: 'Unsure' },
+const answerOptions: { value: Answer; label: string; helper: string }[] = [
+  { value: 'yes', label: 'Yes', helper: 'This applies' },
+  { value: 'no', label: 'No', helper: 'This does not apply' },
+  { value: 'unsure', label: 'Not sure', helper: 'I cannot tell' },
 ];
 
-function sectionLabel(step: number) {
-  if (step <= 9) return 'Quick safety check';
-  if (step <= 15) return 'Your skin story';
-  return 'Products and context';
+const sectionNames = ['Safety check', 'Skin story', 'Products & context'];
+
+function sectionIndex(step: number) {
+  if (step <= 9) return 0;
+  if (step <= 15) return 1;
+  return 2;
 }
 
 function isCompleteQuestionnaire(
@@ -109,15 +112,21 @@ export function QuestionnaireStep({
   onComplete: (answers: Questionnaire) => void;
   isSaving?: boolean;
 }) {
-  const [answers, setAnswers] =
-    useState<QuestionnaireDraft>(initialQuestionnaire);
+  const [answers, setAnswers] = useState<QuestionnaireDraft>(initialQuestionnaire);
   const [step, setStep] = useState(0);
   const [entry, setEntry] = useState('');
   const [usingDemoAnswers, setUsingDemoAnswers] = useState(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const question = questions[step];
   const value = answers[question.key];
   const list = Array.isArray(value) ? value : [];
   const hasCurrentAnswer = Array.isArray(value) || value !== null;
+  const activeSection = sectionIndex(step);
+  const progress = ((step + 1) / questions.length) * 100;
+
+  useEffect(() => {
+    if (step > 0) headingRef.current?.focus();
+  }, [step]);
 
   function setValue(next: Questionnaire[keyof Questionnaire]) {
     setUsingDemoAnswers(false);
@@ -135,116 +144,282 @@ export function QuestionnaireStep({
     if (!hasCurrentAnswer) return;
     if (step === questions.length - 1) {
       if (isCompleteQuestionnaire(answers)) onComplete(answers);
+      return;
     }
-    else {
-      setEntry('');
-      setStep((current) => current + 1);
-    }
+    setEntry('');
+    setStep((current) => current + 1);
   }
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft" aria-live="polite">
-      <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 p-4">
-        <p className="text-sm font-semibold text-sky-950">
-          Presentation shortcut
-        </p>
-        <p className="mt-1 text-xs leading-5 text-sky-900">
-          Load clearly labeled synthetic answers to demonstrate the complete AI
-          cycle. Do not use them as a person&apos;s medical history.
-        </p>
-        <button
-          type="button"
-          onClick={() => {
-            setAnswers(syntheticDemoQuestionnaire);
-            setUsingDemoAnswers(true);
-          }}
-          className="mt-3 rounded-xl border border-sky-300 bg-white px-4 py-2 text-xs font-semibold text-sky-950"
-        >
-          {usingDemoAnswers ? 'Synthetic demo answers loaded' : 'Load synthetic demo answers'}
-        </button>
-      </div>
-      <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-        <span>{sectionLabel(step)} · Question {step + 1} of {questions.length}</span>
-        <span>{Math.round(((step + 1) / questions.length) * 100)}%</span>
-      </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-        <div className="h-full rounded-full bg-moss transition-all" style={{ width: `${((step + 1) / questions.length) * 100}%` }} />
-      </div>
-      <h2 className="mt-6 text-xl font-semibold text-ink">{question.title}</h2>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{question.description}</p>
-
-      <div className="mt-5">
-        {question.kind === 'answer' ? (
-          <div className="grid grid-cols-3 gap-2">
-            {answerOptions.map((option) => (
-              <button key={option.value} type="button" onClick={() => setValue(option.value)} className={`rounded-2xl border px-3 py-3 text-sm font-semibold ${value === option.value ? 'border-moss bg-moss text-white' : 'border-slate-300 text-ink'}`}>
-                {option.label}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {question.kind === 'duration' ? (
-          <select value={value === null ? '' : String(value)} onChange={(event) => setValue(event.target.value as Questionnaire['duration'])} className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-            <option value="" disabled>Select a duration</option>
-            <option value="less_than_one_week">Less than a week</option>
-            <option value="one_to_four_weeks">1–4 weeks</option>
-            <option value="one_to_six_months">1–6 months</option>
-            <option value="more_than_six_months">More than 6 months</option>
-            <option value="unsure">Unsure</option>
-          </select>
-        ) : null}
-        {question.kind === 'area' ? (
-          <select value={value === null ? '' : String(value)} onChange={(event) => setValue(event.target.value as Questionnaire['affected_body_area'])} className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-            <option value="" disabled>Select an area</option>
-            <option value="face_or_neck">Face or neck</option><option value="scalp">Scalp</option>
-            <option value="chest_or_back">Chest or back</option><option value="arms_or_hands">Arms or hands</option>
-            <option value="legs_or_feet">Legs or feet</option><option value="groin_or_skin_folds">Groin or skin folds</option>
-            <option value="other">Other</option><option value="unsure">Unsure</option>
-          </select>
-        ) : null}
-        {question.kind === 'age' ? (
-          <select value={value === null ? '' : String(value)} onChange={(event) => setValue(event.target.value as Questionnaire['age_group'])} className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-            <option value="" disabled>Select an age group</option>
-            <option value="infant">Infant</option><option value="child">Child</option>
-            <option value="adolescent">Adolescent</option><option value="adult">Adult</option>
-            <option value="older_adult">Older adult</option><option value="prefer_not_to_say">Prefer not to say</option>
-          </select>
-        ) : null}
-        {question.kind === 'pain' ? (
-          <>
-            <input aria-label="Pain level" type="range" min="0" max="10" value={Number(value ?? 0)} onChange={(event) => setValue(Number(event.target.value))} className="w-full accent-moss" />
-            <p className="mt-2 text-center text-lg font-semibold text-ink">
-              {value === null ? 'Select a pain level' : `${Number(value)} / 10`}
+    <section className="ss-card overflow-hidden" aria-live="polite">
+      <div className="border-b border-forest/8 bg-mist/55 px-5 py-5 sm:px-7">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="ss-kicker">Structured questionnaire</p>
+            <p className="mt-1 text-sm font-bold text-forest">
+              Question {step + 1} <span className="font-medium text-forest/35">of {questions.length}</span>
             </p>
-            {value === null ? (
-              <button
-                type="button"
-                onClick={() => setValue(0)}
-                className="mx-auto mt-3 block rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-ink"
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setAnswers(syntheticDemoQuestionnaire);
+              setUsingDemoAnswers(true);
+            }}
+            className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition ${
+              usingDemoAnswers
+                ? 'border-moss/25 bg-sage text-moss'
+                : 'border-forest/12 bg-white text-forest/60 hover:border-moss/30 hover:text-moss'
+            }`}
+          >
+            <Icon name={usingDemoAnswers ? 'check' : 'sparkles'} className="h-4 w-4" />
+            {usingDemoAnswers ? 'Demo answers loaded' : 'Load demo answers'}
+          </button>
+        </div>
+
+        <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-forest/8">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-moss to-[#4ea88f] transition-[width] duration-300"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <div className="mt-4 hidden grid-cols-3 gap-2 sm:grid">
+          {sectionNames.map((name, index) => (
+            <div
+              key={name}
+              className={`flex items-center gap-2 text-[11px] font-bold ${
+                index === activeSection
+                  ? 'text-forest'
+                  : index < activeSection
+                    ? 'text-moss'
+                    : 'text-forest/30'
+              }`}
+            >
+              <span
+                className={`grid h-5 w-5 place-items-center rounded-full ${
+                  index < activeSection
+                    ? 'bg-moss text-white'
+                    : index === activeSection
+                      ? 'bg-forest text-white'
+                      : 'border border-forest/10 bg-white'
+                }`}
               >
-                No pain (0)
-              </button>
-            ) : null}
-          </>
-        ) : null}
-        {question.kind === 'list' ? (
-          <>
-            <div className="flex gap-2">
-              <input value={entry} maxLength={100} onChange={(event) => setEntry(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addListItem(); } }} placeholder="Type an item" className="min-w-0 flex-1 rounded-2xl border border-slate-300 px-4 py-3 text-sm" />
-              <button type="button" onClick={addListItem} className="rounded-2xl bg-slate-100 px-4 text-sm font-semibold text-ink">Add</button>
+                {index < activeSection ? <Icon name="check" className="h-3 w-3" /> : index + 1}
+              </span>
+              {name}
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {list.map((item, index) => <button key={`${item}-${index}`} type="button" onClick={() => setValue(list.filter((_, itemIndex) => itemIndex !== index))} className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">{item} ×</button>)}
-            </div>
-          </>
-        ) : null}
+          ))}
+        </div>
       </div>
 
-      <div className="mt-7 flex justify-between gap-3">
-        <button type="button" onClick={() => step > 0 && setStep((current) => current - 1)} disabled={step === 0 || isSaving} className="rounded-2xl px-4 py-3 text-sm font-semibold text-slate-600 disabled:opacity-40">Back</button>
-        <button type="button" onClick={next} disabled={isSaving || !hasCurrentAnswer} className="rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">
-          {step === questions.length - 1 ? (isSaving ? 'Saving…' : 'Finish') : 'Continue'}
-        </button>
+      {usingDemoAnswers ? (
+        <div className="border-b border-sky-200 bg-sky-50 px-5 py-3 text-xs leading-5 text-sky-900 sm:px-7">
+          <strong>Synthetic presentation profile:</strong> these answers demonstrate the full cycle and are not a person&apos;s medical history.
+        </div>
+      ) : null}
+
+      <div className="px-5 py-7 sm:px-8 sm:py-10">
+        <div className="mx-auto max-w-2xl">
+          <div className="flex items-center gap-2 text-xs font-bold text-moss sm:hidden">
+            <span>{sectionNames[activeSection]}</span>
+            <span className="text-forest/20">/</span>
+            <span className="text-forest/40">{Math.round(progress)}%</span>
+          </div>
+          <h2
+            ref={headingRef}
+            tabIndex={-1}
+            className="mt-3 max-w-xl text-2xl font-bold leading-tight tracking-[-0.025em] text-forest outline-none sm:text-3xl"
+          >
+            {question.title}
+          </h2>
+          <p className="mt-3 max-w-xl text-sm leading-7 text-forest/58">
+            {question.description}
+          </p>
+
+          <div className="mt-7 min-h-36">
+            {question.kind === 'answer' ? (
+              <div className="grid gap-3 sm:grid-cols-3" role="group" aria-label={question.title}>
+                {answerOptions.map((option) => {
+                  const selected = value === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setValue(option.value)}
+                      aria-pressed={selected}
+                      className={`group rounded-2xl border p-4 text-left transition duration-200 ${
+                        selected
+                          ? 'border-forest bg-forest text-white shadow-brand'
+                          : 'border-forest/12 bg-white text-forest hover:-translate-y-0.5 hover:border-moss/40 hover:bg-sage/25'
+                      }`}
+                    >
+                      <span className="flex items-center justify-between">
+                        <span className="text-base font-bold">{option.label}</span>
+                        <span
+                          className={`grid h-6 w-6 place-items-center rounded-full border ${
+                            selected ? 'border-white/30 bg-white/15' : 'border-forest/15'
+                          }`}
+                        >
+                          {selected ? <Icon name="check" className="h-3.5 w-3.5" /> : null}
+                        </span>
+                      </span>
+                      <span className={`mt-2 block text-xs ${selected ? 'text-white/60' : 'text-forest/42'}`}>
+                        {option.helper}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {question.kind === 'duration' ? (
+              <select
+                value={value === null ? '' : String(value)}
+                onChange={(event) => setValue(event.target.value as Questionnaire['duration'])}
+                className="ss-input max-w-xl"
+              >
+                <option value="" disabled>Select a duration</option>
+                <option value="less_than_one_week">Less than a week</option>
+                <option value="one_to_four_weeks">1–4 weeks</option>
+                <option value="one_to_six_months">1–6 months</option>
+                <option value="more_than_six_months">More than 6 months</option>
+                <option value="unsure">I&apos;m not sure</option>
+              </select>
+            ) : null}
+
+            {question.kind === 'area' ? (
+              <select
+                value={value === null ? '' : String(value)}
+                onChange={(event) => setValue(event.target.value as Questionnaire['affected_body_area'])}
+                className="ss-input max-w-xl"
+              >
+                <option value="" disabled>Select the main area</option>
+                <option value="face_or_neck">Face or neck</option>
+                <option value="scalp">Scalp</option>
+                <option value="chest_or_back">Chest or back</option>
+                <option value="arms_or_hands">Arms or hands</option>
+                <option value="legs_or_feet">Legs or feet</option>
+                <option value="groin_or_skin_folds">Groin or skin folds</option>
+                <option value="other">Another area</option>
+                <option value="unsure">I&apos;m not sure</option>
+              </select>
+            ) : null}
+
+            {question.kind === 'age' ? (
+              <select
+                value={value === null ? '' : String(value)}
+                onChange={(event) => setValue(event.target.value as Questionnaire['age_group'])}
+                className="ss-input max-w-xl"
+              >
+                <option value="" disabled>Select an age group</option>
+                <option value="infant">Infant</option>
+                <option value="child">Child</option>
+                <option value="adolescent">Adolescent</option>
+                <option value="adult">Adult</option>
+                <option value="older_adult">Older adult</option>
+                <option value="prefer_not_to_say">Prefer not to say</option>
+              </select>
+            ) : null}
+
+            {question.kind === 'pain' ? (
+              <div className="max-w-xl rounded-[24px] border border-forest/10 bg-mist/55 p-5 sm:p-6">
+                <div className="flex items-end justify-between">
+                  <span className="text-xs font-bold text-forest/45">No pain</span>
+                  <span className="font-display text-4xl text-forest">
+                    {value === null ? '—' : Number(value)}
+                    <span className="ml-1 text-base text-forest/35">/ 10</span>
+                  </span>
+                  <span className="text-xs font-bold text-forest/45">Severe</span>
+                </div>
+                <input
+                  aria-label="Pain level from zero to ten"
+                  type="range"
+                  min="0"
+                  max="10"
+                  value={Number(value ?? 0)}
+                  onChange={(event) => setValue(Number(event.target.value))}
+                  className="mt-6 h-2 w-full cursor-pointer accent-moss"
+                />
+                {value === null ? (
+                  <button type="button" onClick={() => setValue(0)} className="ss-button-secondary mx-auto mt-5 min-h-10 py-2">
+                    Select no pain (0)
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+
+            {question.kind === 'list' ? (
+              <div className="max-w-xl">
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    value={entry}
+                    maxLength={100}
+                    onChange={(event) => setEntry(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        addListItem();
+                      }
+                    }}
+                    placeholder="Type an item, if any"
+                    className="ss-input min-w-0 flex-1"
+                  />
+                  <button type="button" onClick={addListItem} disabled={!entry.trim()} className="ss-button-secondary">
+                    Add item
+                  </button>
+                </div>
+                {list.length ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {list.map((item, index) => (
+                      <button
+                        key={`${item}-${index}`}
+                        type="button"
+                        onClick={() => setValue(list.filter((_, itemIndex) => itemIndex !== index))}
+                        className="inline-flex items-center gap-2 rounded-full bg-sage/70 px-3 py-1.5 text-xs font-semibold text-forest transition hover:bg-red-50 hover:text-red-800"
+                        aria-label={`Remove ${item}`}
+                      >
+                        {item}
+                        <Icon name="x" className="h-3 w-3" />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 flex items-center gap-2 text-xs text-forest/40">
+                    <Icon name="info" className="h-4 w-4" />
+                    Nothing to add? You can continue.
+                  </p>
+                )}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="sticky bottom-0 z-10 border-t border-forest/8 bg-white/92 px-5 py-4 backdrop-blur-xl sm:px-8">
+        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => step > 0 && setStep((current) => current - 1)}
+            disabled={step === 0 || isSaving}
+            className="ss-button-secondary min-w-28"
+          >
+            <Icon name="chevron-left" className="h-4 w-4" />
+            Back
+          </button>
+          <button
+            type="button"
+            onClick={next}
+            disabled={isSaving || !hasCurrentAnswer}
+            className="ss-button-primary min-w-32"
+          >
+            {step === questions.length - 1
+              ? isSaving
+                ? 'Preparing…'
+                : 'Finish'
+              : 'Continue'}
+            {!isSaving ? <Icon name="arrow-right" className="h-4 w-4" /> : null}
+          </button>
+        </div>
       </div>
     </section>
   );

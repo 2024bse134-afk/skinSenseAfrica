@@ -27,6 +27,7 @@ recommendation invocation.
 - [Environment configuration](#environment-configuration)
 - [Running the application](#running-the-application)
 - [Google Cloud Run backend deployment](#google-cloud-run-backend-deployment)
+- [Firebase App Hosting frontend deployment](#firebase-app-hosting-frontend-deployment)
 - [Testing](#testing)
 - [Cortex smoke tests](#cortex-smoke-tests)
 - [API reference](#api-reference)
@@ -792,6 +793,86 @@ NEXT_PUBLIC_API_BASE_URL=https://skinsense-backend-240757536793.us-central1.run.
 - `min-instances=0` minimizes idle cost. Setting it to 1 can reduce cold starts
   but incurs ongoing cost and still does not guarantee durable state.
 - Cloud Run and provider request charges apply to live Cortex use.
+
+## Firebase App Hosting frontend deployment
+
+The Next.js application uses Firebase **App Hosting**, not classic static
+Firebase Hosting. App Hosting runs the dynamic Next.js routes and the
+server-side `/api` rewrite required by this repository.
+
+### Current prototype deployment
+
+| Setting | Value |
+|---|---|
+| Firebase project | Tradezzila (`tradezzila`) |
+| Region | `europe-west4` |
+| App Hosting backend | `skinsense-web` |
+| Frontend URL | <https://skinsense-web--tradezzila.europe-west4.hosted.app> |
+| Repository root directory | `frontend` |
+| Node compatibility | 20–22 |
+| Scaling | 0–2 instances |
+
+The Tradezzila project also contains an unrelated App Hosting backend named
+`tradezzila-storefront`. Do not deploy SkinSense under that target.
+
+`frontend/apphosting.yaml` makes the browser call the same-origin `/api` path.
+Next.js then forwards the request server-side to the Cloud Run backend through
+`BACKEND_API_URL`. This avoids cross-origin browser requests while preserving
+the public frontend API contract.
+
+### Install and authenticate the Firebase CLI
+
+Use Node.js 20 or 22:
+
+```bash
+node --version
+npm install --global firebase-tools
+firebase login
+firebase login:list
+```
+
+If multiple accounts are signed in, always pass the intended account and
+project explicitly.
+
+### Validate and deploy
+
+From the repository root:
+
+```bash
+cd frontend
+npm ci
+npm run lint
+npm run build
+cd ..
+
+firebase deploy \
+  --only apphosting:skinsense-web \
+  --project tradezzila \
+  --account osenprojects64@gmail.com
+```
+
+The committed `.firebaserc`, `firebase.json`, and
+`frontend/apphosting.yaml` files contain the backend target, frontend root,
+runtime limits, and non-secret API routing configuration. Local `.env` files
+and Firebase debug logs are ignored.
+
+### Verify the live application
+
+```bash
+FRONTEND_URL="https://skinsense-web--tradezzila.europe-west4.hosted.app"
+
+curl -I "$FRONTEND_URL/"
+curl "$FRONTEND_URL/api/health"
+```
+
+The second command must return:
+
+```json
+{"status":"ok"}
+```
+
+That response verifies the complete Firebase App Hosting → Next.js rewrite →
+Cloud Run path, not only the static page.
 
 ## Testing
 

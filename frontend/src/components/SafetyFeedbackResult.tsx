@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { Icon } from '@/components/Icons';
 import type {
   AssessmentDetail,
   ClinicianSummary,
@@ -51,9 +52,10 @@ export function SafetyFeedbackResult({
   if (!safety) return null;
 
   const isEmergency = safety.urgency === 'emergency';
+  const isUrgent = safety.urgency === 'urgent';
   const title = isEmergency
     ? 'Seek emergency help now'
-    : safety.urgency === 'urgent'
+    : isUrgent
       ? 'Seek urgent medical care'
       : 'Professional review recommended';
 
@@ -70,82 +72,115 @@ export function SafetyFeedbackResult({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <section
-        className={`rounded-3xl border p-6 shadow-soft ${
-          isEmergency
-            ? 'border-red-300 bg-red-50'
-            : 'border-amber-300 bg-amber-50'
+        className={`relative overflow-hidden rounded-[32px] text-white shadow-lift ${
+          isEmergency || isUrgent ? 'bg-[#7f2d2d]' : 'bg-[#765316]'
         }`}
         aria-live="assertive"
       >
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
-          {label(safety.urgency)}
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold text-ink">{title}</h1>
-        <p className="mt-4 text-sm leading-6 text-slate-800">
-          {safety.action_message}
-        </p>
+        <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full border-[34px] border-white/[0.04]" />
+        <div className="relative p-6 sm:p-9">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white/75">
+              <Icon name="warning" className="h-4 w-4" />
+              {label(safety.urgency)}
+            </span>
+            <span className="rounded-full border border-white/15 px-3 py-1 text-[10px] font-bold text-white/60">
+              Safety policy {safety.policy_version}
+            </span>
+          </div>
+          <h1 className="mt-7 max-w-2xl font-display text-4xl leading-[1.06] tracking-[-0.035em] sm:text-5xl">
+            {title}
+          </h1>
+          <p className="mt-5 max-w-2xl text-sm leading-7 text-white/78 sm:text-base">
+            {safety.action_message}
+          </p>
+          {(isEmergency || isUrgent) ? (
+            <p className="mt-6 inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-3 text-xs font-bold text-white">
+              <Icon name="shield" className="h-4 w-4" />
+              Do not rely on the AI explanation instead of in-person care.
+            </p>
+          ) : null}
+        </div>
       </section>
 
       {feedback ? (
         <>
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
-            <h2 className="text-xl font-semibold text-ink">
-              {feedback.heading}
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              These are the exact safety rules triggered by the information
-              submitted.
-            </p>
-            <ul className="mt-4 space-y-3">
-              {feedback.triggers.map((trigger) => (
-                <li
-                  key={trigger.code}
-                  className="flex gap-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm leading-6 text-slate-800"
-                >
-                  <span aria-hidden="true" className="font-bold text-amber-700">
-                    !
-                  </span>
-                  <span>{trigger.label}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
-            <h2 className="text-xl font-semibold text-ink">Safest next steps</h2>
-            <ol className="mt-4 space-y-3 text-sm leading-6 text-slate-700">
-              {feedback.next_steps.map((step, index) => (
-                <li key={step} className="flex gap-3">
-                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-ink text-xs font-semibold text-white">
-                    {index + 1}
-                  </span>
-                  <span>{step}</span>
-                </li>
-              ))}
-            </ol>
-          </section>
-
-          {!embedded ? <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Preliminary assessment
-            </p>
-            <h2 className="mt-2 text-2xl font-semibold text-ink">
-              {label(feedback.clinician_summary.preliminary_condition)}
-            </h2>
-            <p className="mt-2 text-sm text-slate-700">
-              <strong>
-                {label(feedback.clinician_summary.confidence_level)} confidence
-              </strong>
-              . This is not a confirmed diagnosis.
-            </p>
-            {assessment.assessment?.limitations.map((limitation) => (
-              <p key={limitation} className="mt-2 text-xs text-slate-500">
-                {limitation}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <section className="ss-card p-6 sm:p-7">
+              <div className="flex items-start gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-amber-100 text-amber-800">
+                  <Icon name="warning" className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="ss-kicker text-amber-800">Triggered checks</p>
+                  <h2 className="mt-1 text-xl font-bold text-forest">{feedback.heading}</h2>
+                </div>
+              </div>
+              <p className="mt-4 text-xs leading-6 text-forest/50">
+                These labels come directly from deterministic safety rules.
               </p>
-            ))}
-          </section> : null}
+              <ul className="mt-5 space-y-3">
+                {feedback.triggers.map((trigger) => (
+                  <li
+                    key={trigger.code}
+                    className="flex gap-3 rounded-2xl border border-amber-100 bg-amber-50/70 px-4 py-3 text-sm leading-6 text-forest/72"
+                  >
+                    <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-600" />
+                    <span>{trigger.label}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section className="ss-card p-6 sm:p-7">
+              <div className="flex items-start gap-3">
+                <span className="ss-icon-box">
+                  <Icon name="arrow-right" className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="ss-kicker">Action plan</p>
+                  <h2 className="mt-1 text-xl font-bold text-forest">Safest next steps</h2>
+                </div>
+              </div>
+              <ol className="mt-6 space-y-4">
+                {feedback.next_steps.map((nextStep, index) => (
+                  <li key={nextStep} className="flex gap-3 text-sm leading-7 text-forest/68">
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-forest text-xs font-bold text-white">
+                      {index + 1}
+                    </span>
+                    <span>{nextStep}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          </div>
+
+          {!embedded ? (
+            <section className="ss-card grid overflow-hidden lg:grid-cols-[.72fr_1.28fr]">
+              <div className="bg-forest p-6 text-white sm:p-7">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#a5ddcc]">
+                  Preliminary pattern
+                </p>
+                <h2 className="mt-3 font-display text-3xl">
+                  {label(feedback.clinician_summary.preliminary_condition)}
+                </h2>
+                <p className="mt-3 text-sm font-bold text-white/75">
+                  {label(feedback.clinician_summary.confidence_level)} confidence
+                </p>
+              </div>
+              <div className="p-6 sm:p-7">
+                <p className="text-sm font-bold text-forest">Important limitation</p>
+                <p className="mt-2 text-sm leading-7 text-forest/58">
+                  This pattern is not a confirmed diagnosis. Safety guidance takes priority over the preliminary label.
+                </p>
+                {assessment.assessment?.limitations.map((limitation) => (
+                  <p key={limitation} className="mt-2 text-xs text-forest/42">{limitation}</p>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <ClinicianSummaryCard
             safety={safety}
@@ -154,31 +189,39 @@ export function SafetyFeedbackResult({
             onCopy={copySummary}
           />
 
-          <aside className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-950">
-            <strong>How safety changed the guidance:</strong>{' '}
-            {feedback.guidance_withheld_reason}
+          <aside className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-7 text-amber-950">
+            <Icon name="shield" className="mt-1 h-4 w-4 shrink-0" />
+            <p>
+              <strong>How safety changed the guidance:</strong>{' '}
+              {feedback.guidance_withheld_reason}
+            </p>
           </aside>
         </>
       ) : (
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
-          <h2 className="text-xl font-semibold text-ink">Why this was flagged</h2>
-          <ul className="mt-3 space-y-2 text-sm text-slate-700">
+        <section className="ss-card p-6 sm:p-7">
+          <h2 className="text-xl font-bold text-forest">Why this was flagged</h2>
+          <ul className="mt-4 space-y-3">
             {safety.red_flags.map((flag) => (
-              <li key={flag}>• {label(flag)}</li>
+              <li key={flag} className="flex gap-3 text-sm text-forest/65">
+                <span className="mt-1.5 h-2 w-2 rounded-full bg-amber-600" />
+                {label(flag)}
+              </li>
             ))}
           </ul>
-          <p className="mt-5 text-sm text-slate-700">
-            No treatment-like guidance was generated for this result.
+          <p className="mt-5 text-sm text-forest/58">
+            AI guidance was not available for this result.
           </p>
         </section>
       )}
 
-      {!embedded ? <Link
-        href="/"
-        className="inline-block rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white"
-      >
-        Start a new assessment
-      </Link> : null}
+      {!embedded ? (
+        <div className="text-center">
+          <Link href="/" className="ss-button-primary">
+            Start a new assessment
+            <Icon name="arrow-right" className="h-4 w-4" />
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -194,82 +237,57 @@ function ClinicianSummaryCard({
   copyStatus: 'idle' | 'copied' | 'failed';
   onCopy: () => void;
 }) {
+  const items = [
+    ['Urgency', label(safety.urgency)],
+    ['Duration', label(summary.duration)],
+    ['Affected area', label(summary.affected_body_area)],
+    ['Age group', label(summary.age_group)],
+    ['Pain level', `${summary.pain_level} / 10`],
+    ['Reported yes', listText(summary.reported_yes_answers)],
+    ['Reported unsure', listText(summary.reported_unsure_answers)],
+    ['Previous treatment', listText(summary.previous_treatment)],
+    ['Known allergies', listText(summary.known_allergies)],
+    ['Current products', listText(summary.current_products)],
+  ];
+
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <section className="ss-card overflow-hidden">
+      <div className="flex flex-col gap-4 border-b border-forest/8 bg-mist/55 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7">
         <div>
-          <h2 className="text-xl font-semibold text-ink">
-            Reported-information summary
-          </h2>
-          <p className="mt-1 text-sm leading-6 text-slate-600">
-            You can show this structured summary to a healthcare professional.
+          <p className="ss-kicker">Portable summary</p>
+          <h2 className="mt-1 text-xl font-bold text-forest">Reported information</h2>
+          <p className="mt-1 text-xs leading-5 text-forest/48">
+            Copy this structured context to show a healthcare professional.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onCopy}
-          className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-ink"
-        >
+        <button type="button" onClick={onCopy} className="ss-button-secondary min-h-10 py-2">
+          <Icon name={copyStatus === 'copied' ? 'check' : 'copy'} className="h-4 w-4" />
           {copyStatus === 'copied' ? 'Copied' : 'Copy summary'}
         </button>
       </div>
 
-      <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
-        <SummaryItem labelText="Urgency" value={label(safety.urgency)} />
-        <SummaryItem
-          labelText="Duration"
-          value={label(summary.duration)}
-        />
-        <SummaryItem
-          labelText="Affected area"
-          value={label(summary.affected_body_area)}
-        />
-        <SummaryItem labelText="Age group" value={label(summary.age_group)} />
-        <SummaryItem
-          labelText="Pain level"
-          value={`${summary.pain_level} / 10`}
-        />
-        <SummaryItem
-          labelText="Reported yes"
-          value={listText(summary.reported_yes_answers)}
-        />
-        <SummaryItem
-          labelText="Reported unsure"
-          value={listText(summary.reported_unsure_answers)}
-        />
-        <SummaryItem
-          labelText="Previous treatment"
-          value={listText(summary.previous_treatment)}
-        />
-        <SummaryItem
-          labelText="Known allergies"
-          value={listText(summary.known_allergies)}
-        />
-        <SummaryItem
-          labelText="Current products"
-          value={listText(summary.current_products)}
-        />
+      <dl className="grid sm:grid-cols-2 lg:grid-cols-5">
+        {items.map(([labelText, value], index) => (
+          <div
+            key={labelText}
+            className={`p-5 ${
+              index < items.length - 1 ? 'border-b border-forest/8' : ''
+            } sm:border-b sm:border-r sm:last:border-r-0 lg:[&:nth-child(n+6)]:border-b-0`}
+          >
+            <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-forest/38">
+              {labelText}
+            </dt>
+            <dd className="mt-2 break-words text-xs font-semibold leading-5 text-forest/72">
+              {value}
+            </dd>
+          </div>
+        ))}
       </dl>
       {copyStatus === 'failed' ? (
-        <p role="alert" className="mt-4 text-sm text-red-700">
+        <p role="alert" className="border-t border-red-200 bg-red-50 px-6 py-3 text-sm text-red-700">
           Copying was unavailable. You can show this screen instead.
         </p>
       ) : null}
     </section>
-  );
-}
-
-function SummaryItem({
-  labelText,
-  value,
-}: {
-  labelText: string;
-  value: string;
-}) {
-  return (
-    <div>
-      <dt className="font-semibold text-slate-500">{labelText}</dt>
-      <dd className="mt-1 leading-6 text-slate-800">{value}</dd>
-    </div>
   );
 }

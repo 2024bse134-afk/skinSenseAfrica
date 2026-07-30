@@ -1,0 +1,22 @@
+# Settings for Backend (on Cloud Run).
+# See https://firebase.google.com/docs/app-hosting/configure#cloud-run
+runConfig:
+  minInstances: 0
+  maxInstances: 2
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512
+
+# Browser requests stay on the Firebase origin and Next.js forwards them to
+# Cloud Run. This avoids exposing backend CORS configuration to the frontend.
+env:
+  - variable: NEXT_PUBLIC_API_BASE_URL
+    value: /api
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: BACKEND_API_URL
+    value: https://skinsense-backend-240757536793.us-central1.run.app
+    availability:
+      - BUILD
+      - RUNTIME

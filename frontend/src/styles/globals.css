@@ -2,15 +2,137 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: light; --ss-ink: #153d43; --ss-teal: #176b70; --ss-accent: #d97745; --ss-accent-dark: #ba6034; --ss-border: #dbe6e3; --ss-card: rgba(255, 255, 255, .88); }
-* { box-sizing: border-box; }
-html { background: #f4f8f7; }
-body { min-width: 320px; margin: 0; background: radial-gradient(circle at 12% 0%, #e4f2ee 0, transparent 31rem), linear-gradient(180deg, #f9fcfb, #f1f6f5); color: var(--ss-ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 16px; line-height: 1.6; }
-button, input, select, textarea { font: inherit; }
-button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #f3b187; outline-offset: 3px; }
-.ss-shell { width: min(100% - 2rem, 44rem); margin: 0 auto; }
-.ss-card { border: 1px solid var(--ss-border); border-radius: 1.5rem; background: var(--ss-card); box-shadow: 0 10px 28px rgba(21, 61, 67, .07); }
-.ss-primary-button { min-height: 3.5rem; border-radius: 1rem; background: var(--ss-accent); color: white; box-shadow: 0 6px 14px rgba(186, 96, 52, .2); transition: background-color 150ms ease, transform 150ms ease, box-shadow 150ms ease; }
-.ss-primary-button:hover { background: var(--ss-accent-dark); box-shadow: 0 9px 18px rgba(186, 96, 52, .26); }
-.ss-primary-button:active { transform: translateY(1px); }
-.ss-primary-button:disabled { cursor: not-allowed; opacity: .62; box-shadow: none; }
+:root {
+  color-scheme: light;
+  --ss-forest: #0e3b36;
+  --ss-moss: #187765;
+  --ss-coral: #df6a4a;
+  --ss-cream: #f8f6ef;
+  --ss-border: rgba(14, 59, 54, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--ss-cream);
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+  background:
+    radial-gradient(circle at 5% 0%, rgba(194, 226, 211, 0.48), transparent 30rem),
+    radial-gradient(circle at 95% 14%, rgba(246, 211, 164, 0.28), transparent 28rem),
+    linear-gradient(180deg, #fbfaf6 0%, #f4f7f2 52%, #f8f6ef 100%);
+  color: var(--ss-forest);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a,
+label {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: #cbe7dc;
+  color: var(--ss-forest);
+}
+
+:focus-visible {
+  outline: 3px solid rgba(223, 106, 74, 0.6);
+  outline-offset: 3px;
+}
+
+@layer components {
+  .ss-container {
+    @apply mx-auto w-full max-w-[1180px] px-4 sm:px-6 lg:px-8;
+  }
+
+  .ss-page {
+    @apply min-h-[calc(100vh-72px)] py-7 sm:py-10 lg:py-14;
+  }
+
+  .ss-card {
+    @apply rounded-[28px] border border-forest/10 bg-white/90 shadow-soft backdrop-blur-sm;
+  }
+
+  .ss-kicker {
+    @apply text-[11px] font-bold uppercase tracking-[0.2em] text-moss;
+  }
+
+  .ss-title {
+    @apply font-display text-4xl font-medium leading-[1.04] tracking-[-0.035em] text-forest sm:text-5xl lg:text-6xl;
+  }
+
+  .ss-button-primary {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-forest px-5 py-3 text-sm font-bold text-white shadow-brand transition duration-200 hover:-translate-y-0.5 hover:bg-[#155149] hover:shadow-lift active:translate-y-0 disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none;
+  }
+
+  .ss-button-accent {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-coral px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(223,106,74,.25)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#ca5b3d] active:translate-y-0 disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none;
+  }
+
+  .ss-button-secondary {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-forest/15 bg-white px-5 py-3 text-sm font-bold text-forest transition duration-200 hover:border-moss/35 hover:bg-sage/40 active:bg-sage/70 disabled:pointer-events-none disabled:opacity-45;
+  }
+
+  .ss-input {
+    @apply min-h-12 w-full rounded-2xl border border-forest/15 bg-white px-4 py-3 text-sm text-forest shadow-sm outline-none transition placeholder:text-forest/35 hover:border-forest/25 focus:border-moss focus:ring-4 focus:ring-moss/10;
+  }
+
+  .ss-icon-box {
+    @apply grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-sage text-moss;
+  }
+}
+
+@keyframes ss-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+@keyframes ss-pulse-ring {
+  0% {
+    transform: scale(0.88);
+    opacity: 0.55;
+  }
+  70%,
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+.ss-float {
+  animation: ss-float 5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
