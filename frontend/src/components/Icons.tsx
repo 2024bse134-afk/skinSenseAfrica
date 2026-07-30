@@ -4,6 +4,7 @@ export type IconName =
   | 'arrow-right'
   | 'camera'
   | 'check'
+  | 'chevron-down'
   | 'chevron-left'
   | 'copy'
   | 'file'
@@ -36,6 +37,7 @@ export function Icon({
       </>
     ),
     check: <path d="m5 12 4 4L19 6" />,
+    'chevron-down': <path d="m6 9 6 6 6-6" />,
     'chevron-left': <path d="m15 18-6-6 6-6" />,
     copy: (
       <>

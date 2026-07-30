@@ -47,7 +47,8 @@ The current workflow is:
 3. Validate, decode, orient, sanitize, and assess the image.
 4. Show a preliminary condition, qualitative confidence, image-quality result,
    and any controlled visual findings.
-5. Collect a strict symptom and safety questionnaire.
+5. Ask five image-aware follow-up questions, then map the grouped answers to
+   the strict symptom and safety contract.
 6. Evaluate deterministic safety rules.
 7. Invoke the image-blind recommendation engine separately, unless a hard
    assessment-quality or unsupported-scope block applies.
@@ -1022,8 +1023,10 @@ curl -X POST \
   -F "image=@backend/test_pics/image.png"
 ```
 
-The questionnaire endpoint requires every structured field. The browser UI or
-Swagger interface is the easiest way to submit the full payload.
+The questionnaire endpoint requires every structured field. The browser groups
+those fields into five image-aware questions and deterministically expands the
+answers into the full payload. Swagger is the easiest way to submit the raw
+contract directly.
 
 Request the recommendation after the questionnaire returns
 `recommendation_permission: "allowed"` or `"escalation_only"`. Do not request
@@ -1211,9 +1214,12 @@ AI-generated explanatory context but never routine or product steps. Only hard
 blocks such as an uncertain/unsupported assessment or a required image retake
 skip the recommendation provider.
 
-For presentations, the questionnaire includes a clearly labeled synthetic demo
-profile. It is a shortcut for exercising the routine branch and must not be
-treated as a person's reported medical history.
+For presentations, the browser uses five grouped questions whose wording is
+adapted from the preliminary condition, requested follow-up IDs, and visual
+safety signals. It also includes a clearly labeled synthetic demo profile. The
+profile is a shortcut for exercising the routine branch and must not be treated
+as a person's reported medical history. The result screen keeps the three core
+sections visible and places deeper generated context in an optional disclosure.
 
 ## Current limitations
 
