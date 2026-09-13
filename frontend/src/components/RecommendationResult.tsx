@@ -13,12 +13,15 @@ export function RecommendationResult({ recommendation }: { recommendation: Recom
                 <h2 className="title" style={{ marginBottom: "2rem" }}>Assessment Results</h2>
                 <div style={{ background: "rgba(245, 158, 11, 0.1)", border: "1px solid var(--accent)", padding: "1.5rem", borderRadius: "12px", marginBottom: "2rem" }}>
                     <h3 style={{ margin: 0, color: "var(--accent)", textTransform: "capitalize" }}>Low Confidence</h3>
-                    <p style={{ marginTop: "0.5rem", opacity: 0.8, textTransform: "capitalize" }}>
+                    <p style={{ marginTop: "0.5rem", opacity: 0.8 }}>
                         The confidence score ({confidenceScore ?? "N/A"}) is below the required threshold of {CONFIDENCE_THRESHOLD}. Please retake the photo.
                     </p>
                 </div>
                 <div style={{ marginTop: "2rem", display: "flex", justifyContent: "center" }}>
-                    <button className="btn-primary" onClick={() => { /* TODO: implement retake callback */ }}>
+                    <button className="btn-primary" onClick={() => {
+                        sessionStorage.removeItem("assessment_id");
+                        window.location.href = "/";
+                    }}>
                         Take Another Photo
                     </button>
                 </div>
