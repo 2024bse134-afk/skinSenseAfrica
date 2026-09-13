@@ -68,8 +68,14 @@ export function ImageUploader({ assessmentId, onComplete }: ImageUploaderProps) 
             await assessImage(assessmentId, compressedFile);
             onComplete(); // Successfully uploaded
         } catch (err: any) {
-            setError(err);
-            setLoading(false);
+            if (err?.code === "ASSESSMENT_NOT_FOUND") {
+                sessionStorage.removeItem("assessment_id");
+                alert("Your session expired. Please start a new assessment.");
+                window.location.href = "/";
+            } else {
+                setError(err);
+                setLoading(false);
+            }
         }
     };
 
