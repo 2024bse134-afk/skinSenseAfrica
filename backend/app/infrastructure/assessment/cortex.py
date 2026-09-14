@@ -201,21 +201,20 @@ class CortexMultimodalAssessmentProvider:
         attempt_timeout_seconds = deadline_seconds / (self._max_retries + 1)
         try:
             try:
-                response_text = await asyncio.wait_for(
-                    self._request_with_retries(
+                draft = await asyncio.wait_for(
+                    self._execute_and_parse_with_retries(
                         payload,
                         attempt_timeout_seconds=attempt_timeout_seconds,
                     ),
                     timeout=deadline_seconds,
                 )
+                return draft
             except TimeoutError as exc:
                 raise AssessmentProviderTimeout(
                     "Cortex image assessment timed out"
                 ) from exc
         finally:
             payload = {}
-
-        return self._parse_response(response_text)
 
     def _build_payload(
         self,
@@ -255,19 +254,20 @@ class CortexMultimodalAssessmentProvider:
         finally:
             encoded_bytes = b""
 
-    async def _request_with_retries(
+    async def _execute_and_parse_with_retries(
         self,
         payload: dict[str, Any],
         *,
         attempt_timeout_seconds: float,
-    ) -> str:
+    ) -> ProviderAssessmentDraft:
         for attempt in range(self._max_retries + 1):
             try:
-                return await self._run_sync(
+                response_text = await self._run_sync(
                     self._execute_request,
                     payload,
                     attempt_timeout_seconds,
                 )
+                return self._parse_response(response_text)
             except urllib.error.HTTPError as exc:
                 if (
                     exc.code in RETRYABLE_HTTP_STATUS_CODES
@@ -310,6 +310,11 @@ class CortexMultimodalAssessmentProvider:
                 raise AssessmentProviderUnavailable(
                     "Cortex image assessment is unavailable"
                 ) from exc
+            except AssessmentProviderOutputInvalid:
+                if attempt < self._max_retries:
+                    await asyncio.sleep(self._retry_delay_seconds)
+                    continue
+                raise
 
         raise AssessmentProviderUnavailable("Cortex image assessment is unavailable")
 
