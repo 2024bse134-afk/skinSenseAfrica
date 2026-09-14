@@ -21,20 +21,20 @@ from app.domain.assessment.models import FollowUpQuestionId
 
 
 EMERGENCY_MESSAGE = (
-    "Seek emergency medical help now. Breathing difficulty or swelling of the lips, "
-    "tongue, or throat can be life-threatening."
+    "The patient has reported symptoms indicating a potential medical emergency (e.g. breathing difficulty or swelling). "
+    "Initiate immediate emergency protocols as per clinical guidelines."
 )
 URGENT_MESSAGE = (
-    "Seek urgent in-person medical care as soon as possible. Do not rely on an AI "
-    "assessment for these warning signs."
+    "The patient has reported urgent warning signs. "
+    "Prioritize a definitive in-person clinical examination over AI-assisted assessment."
 )
 REVIEW_MESSAGE = (
-    "A qualified health professional should review this concern. The educational "
-    "guidance is limited to reflect the reported uncertainty or review indicators."
+    "The patient's presentation requires thorough clinical review. "
+    "AI guidance has been limited to reflect the reported uncertainty or red flags."
 )
 ROUTINE_MESSAGE = (
-    "No deterministic red flag was identified from the information provided. Continue "
-    "to educational guidance and seek care if symptoms worsen."
+    "No deterministic red flag was identified from the information provided. "
+    "Proceed with standard clinical assessment taking the AI suggestion into account."
 )
 
 TRIGGER_LABELS = {
@@ -86,40 +86,39 @@ ANSWER_FIELDS = (
 
 NEXT_STEPS = {
     Urgency.EMERGENCY: [
-        "Seek emergency medical help now or contact your local emergency service.",
-        "Do not wait for another AI assessment before seeking help.",
-        "Take the reported-information summary with you if this does not delay care.",
+        "Evaluate the patient immediately for life-threatening conditions.",
+        "Do not rely solely on the AI assessment in emergency scenarios.",
+        "Review the reported clinician summary below for specific emergency indicators.",
     ],
     Urgency.URGENT: [
-        "Arrange urgent in-person medical care as soon as possible.",
-        "Tell the healthcare professional which warning signs triggered this result.",
-        "Seek emergency help if breathing difficulty or lip, tongue, or throat swelling develops.",
+        "Perform a comprehensive in-person clinical examination.",
+        "Review the warning signs that triggered this urgent alert.",
+        "Monitor the patient closely for disease progression (e.g., respiratory distress).",
     ],
     Urgency.PROFESSIONAL_REVIEW: [
-        "Arrange review with a qualified healthcare professional.",
-        "Use the reported-information summary to explain the concern.",
-        "Seek urgent care if the concern rapidly worsens or a warning sign develops.",
+        "Conduct a standard clinical evaluation to address the reported symptoms.",
+        "Use the reported clinician summary to guide your examination.",
+        "Re-evaluate if the concern rapidly worsens or new warning signs develop.",
     ],
 }
 
 FEEDBACK_HEADINGS = {
-    Urgency.EMERGENCY: "Emergency warning signs were reported",
-    Urgency.URGENT: "Urgent warning signs were reported",
-    Urgency.PROFESSIONAL_REVIEW: "Professional review is the safest next step",
+    Urgency.EMERGENCY: "Emergency Warning Signs Detected",
+    Urgency.URGENT: "Urgent Warning Signs Detected",
+    Urgency.PROFESSIONAL_REVIEW: "Detailed Clinical Review Required",
 }
 
 WITHHELD_REASONS = {
     Urgency.EMERGENCY: (
-        "Treatment-like guidance was withheld because emergency warning signs take "
-        "priority over an AI-generated recommendation."
+        "Specific condition guidance was withheld because emergency warning signs require "
+        "immediate clinical intervention."
     ),
     Urgency.URGENT: (
-        "Treatment-like guidance was withheld because urgent warning signs require "
-        "in-person assessment before condition-specific advice."
+        "Condition-specific guidance was withheld because urgent warning signs mandate "
+        "in-person assessment first."
     ),
     Urgency.PROFESSIONAL_REVIEW: (
-        "Guidance was limited because the available information also supports "
-        "professional review."
+        "Guidance was limited due to data uncertainty or the presence of specific review indicators."
     ),
 }
 

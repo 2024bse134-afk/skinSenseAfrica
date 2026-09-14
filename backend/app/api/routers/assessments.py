@@ -99,8 +99,9 @@ async def create_image_assessment(
     provider: ImageAssessmentProvider = Depends(get_image_assessment_provider),
 ) -> ImageAssessmentResult:
     if repository.get(assessment_id) is None:
-        await image.close()
-        raise _not_found()
+        # Due to Cloud Run process restart/stateless memory drops,
+        # an assessment ID might be missing. We recreate it on the fly to avoid 404s.
+        repository.upsert(AssessmentRecord(id=assessment_id, status="draft"))
 
     try:
         validated = await validate_and_sanitize_image(
