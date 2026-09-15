@@ -1,42 +1,71 @@
-import { getJson, postFormData, postJson, putJson } from '@/lib/api-client';
+import { apiRequest } from "@/lib/api-client";
 import type {
-  AssessmentDetail,
-  CreateAssessmentResponse,
-  ImageAssessmentResult,
-  Questionnaire,
-  QuestionnaireResponse,
-  RecommendationResult,
-  ReferralRequest,
-} from './types';
+    CreateAssessmentResponse,
+    ImageAssessmentResult,
+    Questionnaire,
+    QuestionnaireResponse,
+    RecommendationResult,
+    AssessmentDetail,
+    ReferralRequest,
+    ReferralResponse,
+} from "./types";
 
 export async function createAssessment(): Promise<CreateAssessmentResponse> {
-  return postJson<CreateAssessmentResponse>('/v1/assessments', {});
+    return apiRequest<CreateAssessmentResponse>("/v1/assessments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+    });
 }
 
 export async function assessImage(
-  assessmentId: string,
-  image: File,
+    assessmentId: string,
+    image: File,
 ): Promise<ImageAssessmentResult> {
-  const formData = new FormData();
-  formData.append('image', image);
-  return postFormData<ImageAssessmentResult>(
-    `/v1/assessments/${assessmentId}/image-assessment`,
-    formData,
-  );
+    const formData = new FormData();
+    formData.append("image", image);
+
+    return apiRequest<ImageAssessmentResult>(`/v1/assessments/${assessmentId}/image-assessment`, {
+        method: "POST",
+        body: formData,
+    });
 }
 
-export async function getAssessmentRecommendation(assessmentId: string) {
-  return postJson<RecommendationResult>(`/v1/assessments/${assessmentId}/recommendation`, {});
+export async function saveQuestionnaire(
+    assessmentId: string,
+    questionnaire: Questionnaire,
+): Promise<QuestionnaireResponse> {
+    return apiRequest<QuestionnaireResponse>(`/v1/assessments/${assessmentId}/questionnaire`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(questionnaire),
+    });
 }
 
-export function saveQuestionnaire(assessmentId: string, questionnaire: Questionnaire) {
-  return putJson<QuestionnaireResponse>(`/v1/assessments/${assessmentId}/questionnaire`, questionnaire);
+export async function getAssessmentRecommendation(
+    assessmentId: string,
+): Promise<RecommendationResult> {
+    return apiRequest<RecommendationResult>(`/v1/assessments/${assessmentId}/recommendation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+    });
 }
 
-export function getAssessment(assessmentId: string) {
-  return getJson<AssessmentDetail>(`/v1/assessments/${assessmentId}`);
+export async function getAssessment(
+    assessmentId: string,
+): Promise<AssessmentDetail> {
+    return apiRequest<AssessmentDetail>(`/v1/assessments/${assessmentId}`, {
+        method: "GET",
+    });
 }
 
-export function requestReferral(request: ReferralRequest) {
-  return postJson('/v1/referrals', request);
+export async function requestReferral(
+    request: ReferralRequest,
+): Promise<ReferralResponse> {
+    return apiRequest<ReferralResponse>("/v1/referrals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request),
+    });
 }

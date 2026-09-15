@@ -1,107 +1,81 @@
-import { API_BASE_URL } from './constants';
-import type { BackendErrorDetails } from '@/features/assessment/types';
-
-export class ApiClientError extends Error {
-  readonly status: number;
-  readonly code: string;
-  readonly retryable: boolean;
-  readonly details: unknown;
-
-  constructor(message: string, options: { status: number; code: string; retryable: boolean; details: unknown }) {
-    super(message);
-    this.name = 'ApiClientError';
-    this.status = options.status;
-    this.code = options.code;
-    this.retryable = options.retryable;
-    this.details = options.details;
-  }
-}
+const API_BASE_URL =
+    process.env.NEXT_PUBLIC_API_BASE_URL ??
+    "https://skinsense-backend-240757536793.us-central1.run.app";
 
 function buildUrl(path: string): string {
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  if (API_BASE_URL.startsWith('/')) {
+    const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     return `${API_BASE_URL}${normalizedPath}`;
-  }
-  return new URL(normalizedPath, API_BASE_URL).toString();
 }
 
-async function parseError(response: Response): Promise<ApiClientError> {
-  const fallback = {
-    status: response.status,
-    code: 'HTTP_ERROR',
-    retryable: response.status >= 500,
-    details: null,
-    message: `Request failed with status ${response.status}`,
-  };
-
-  try {
-    const payload = (await response.json()) as Partial<BackendErrorDetails> | null;
-    const error = payload?.error;
-    if (error && typeof error.code === 'string' && typeof error.message === 'string') {
-      return new ApiClientError(error.message, {
-        status: response.status,
-        code: error.code,
-        retryable: Boolean(error.retryable),
-        details: error.details ?? null,
-      });
+export class ApiClientError extends Error {
+    constructor(
+        message: string,
+        public readonly status: number,
+        public readonly code: string,
+        public readonly retryable: boolean,
+        public readonly details: unknown,
+        public readonly requestId?: string,
+    ) {
+        super(message);
+        this.name = "ApiClientError";
     }
-  } catch {
-    // Fall through to the generic error below.
-  }
-
-  return new ApiClientError(fallback.message, fallback);
 }
 
-async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(buildUrl(path), {
-      cache: 'no-store',
-      ...init,
-      headers: { Accept: 'application/json', ...(init.headers ?? {}) },
-    });
-  } catch {
-    throw new ApiClientError('Unable to reach the assessment service. Please check your connection and try again.', {
-      status: 0, code: 'NETWORK_ERROR', retryable: true, details: null,
-    });
-  }
+export async function apiRequest<T>(
+    path: string,
+    init: RequestInit = {},
+): Promise<T> {
+    let response: Response;
 
-  if (!response.ok) {
-    throw await parseError(response);
-  }
+    try {
+        response = await fetch(buildUrl(path), {
+            ...init,
+            cache: "no-store",
+            headers: {
+                Accept: "application/json",
+                ...(init.headers ?? {}),
+            },
+        });
+    } catch (error) {
+        console.error("Network Fetch Error", error);
+        throw new ApiClientError(
+            "Unable to reach the server.",
+            0,
+            "NETWORK_ERROR",
+            true,
+            {},
+        );
+    }
 
-  if (response.status === 204) {
-    return undefined as T;
-  }
+    if (!response.ok) {
+        let errorResponse;
+        try {
+            errorResponse = await response.json();
+        } catch {
+            throw new ApiClientError(
+                "Invalid response from server.",
+                response.status,
+                "INVALID_JSON",
+                false,
+                {},
+            );
+        }
 
-  return (await response.json()) as T;
-}
+        const error = errorResponse.error || {};
 
-export async function postJson<T>(path: string, body: unknown): Promise<T> {
-  return requestJson<T>(path, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-}
+        throw new ApiClientError(
+            error.message || `An error occurred (${response.status})`,
+            response.status,
+            error.code || "UNKNOWN_ERROR",
+            error.retryable ?? false,
+            error.details,
+            error.request_id,
+        );
+    }
 
-export async function putJson<T>(path: string, body: unknown): Promise<T> {
-  return requestJson<T>(path, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-}
+    if (response.status === 204) {
+        return undefined as unknown as T;
+    }
 
-export async function postFormData<T>(path: string, formData: FormData): Promise<T> {
-  return requestJson<T>(path, {
-    method: 'POST',
-    body: formData,
-  });
-}
-
-export async function getJson<T>(path: string): Promise<T> {
-  return requestJson<T>(path, { method: 'GET' });
+    return response.json() as Promise<T>;
 }

@@ -1,114 +1,151 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { AppFooter, AppHeader, MobileJourney } from '@/components/AppChrome';
-import { Icon } from '@/components/Icons';
-import { RecommendationResult } from '@/components/RecommendationResult';
-import { SafetyFeedbackResult } from '@/components/SafetyFeedbackResult';
-import { getAssessment } from '@/features/assessment/api';
-import type { AssessmentDetail } from '@/features/assessment/types';
+import { useEffect, useState, use } from "react";
+import { useRouter } from "next/navigation";
+import { getAssessment } from "@/features/assessment/api";
+import type { AssessmentDetail } from "@/features/assessment/types";
+import { SafetyFeedback } from "@/components/SafetyFeedback";
+import { RecommendationResult } from "@/components/RecommendationResult";
+import { ApiErrorPanel } from "@/components/ApiErrorPanel";
 
-export default function ResultPage() {
-  const params = useParams<{ id: string }>();
-  const id = Array.isArray(params.id) ? params.id[0] : params.id;
-  const [assessment, setAssessment] = useState<AssessmentDetail | null>(null);
-  const [error, setError] = useState<string | null>(null);
+export default function ResultPage(props: { params: Promise<{ id: string }> }) {
+    const params = use(props.params);
+    const id = params.id;
+    const router = useRouter();
 
-  useEffect(() => {
-    if (!id) return;
-    getAssessment(id)
-      .then(setAssessment)
-      .catch(() =>
-        setError('We could not load this assessment. Please try again later.'),
-      );
-  }, [id]);
+    const [data, setData] = useState<AssessmentDetail | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<any>(null);
 
-  const safety = assessment?.safety;
-  const hardBlocked = safety?.recommendation_permission === 'blocked';
+    const loadData = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const record = await getAssessment(id);
+            setData(record);
+        } catch (err: any) {
+            if (err.code === "ASSESSMENT_NOT_FOUND") {
+                sessionStorage.removeItem("assessment_id");
+                alert("Your assessment session has expired or could not be found. Please start a new one.");
+                router.push("/");
+            } else {
+                setError(err);
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  return (
-    <div className="min-h-screen">
-      <AppHeader step="results" />
-      <main className="ss-page">
-        <div className="ss-container max-w-[1180px]">
-          <MobileJourney step={3} />
+    useEffect(() => {
+        loadData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]);
 
-          {error ? (
-            <section className="mx-auto max-w-2xl rounded-[28px] border border-red-200 bg-red-50 p-6 shadow-soft sm:p-8">
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-red-100 text-red-700">
-                <Icon name="warning" className="h-6 w-6" />
-              </span>
-              <p className="ss-kicker mt-5 text-red-700">Unable to load</p>
-              <h1 className="mt-2 font-display text-3xl text-forest">
-                Results are unavailable
-              </h1>
-              <p className="mt-3 text-sm leading-7 text-red-800/75">{error}</p>
-              <Link href="/" className="ss-button-primary mt-6">
-                Start over
-                <Icon name="arrow-right" className="h-4 w-4" />
-              </Link>
-            </section>
-          ) : !assessment ? (
-            <ResultSkeleton />
-          ) : hardBlocked && safety ? (
-            <SafetyFeedbackResult assessment={assessment} />
-          ) : assessment.recommendation ? (
-            <RecommendationResult
-              recommendation={assessment.recommendation}
-              assessment={assessment.assessment}
-            />
-          ) : safety && safety.urgency !== 'routine' ? (
-            <SafetyFeedbackResult assessment={assessment} />
-          ) : (
-            <section className="mx-auto max-w-2xl ss-card p-6 sm:p-8">
-              <span className="ss-icon-box">
-                <Icon name="info" className="h-5 w-5" />
-              </span>
-              <h1 className="mt-5 font-display text-3xl text-forest">
-                Guidance is not ready yet
-              </h1>
-              <p className="mt-3 text-sm leading-7 text-forest/58">
-                Return to the assessment to complete any remaining steps.
-              </p>
-              <Link href={`/assessment/${id}`} className="ss-button-primary mt-6">
-                Return to assessment
-                <Icon name="arrow-right" className="h-4 w-4" />
-              </Link>
-            </section>
-          )}
+    // Poll for recommendation when assessment is still processing
+    useEffect(() => {
+        if (loading || error || !data) return;
+        // If recommendation already present, no need to poll
+        if (data.recommendation) return;
+        // If assessment status indicates completed, but recommendation missing, keep polling
+        const pollInterval = 3000; // 3 seconds
+        const maxAttempts = 20; // ~1 minute max
+        let attempts = 0;
+        const intervalId = setInterval(async () => {
+            attempts++;
+            try {
+                const refreshed = await getAssessment(id);
+                setData(refreshed);
+                if (refreshed.recommendation) {
+                    clearInterval(intervalId);
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(intervalId);
+                    setError({ code: 'POLL_TIMEOUT', message: 'Timed out waiting for results.' });
+                }
+            } catch (err: any) {
+                clearInterval(intervalId);
+                setError(err);
+            }
+        }, pollInterval);
+        return () => clearInterval(intervalId);
+    }, [id, loading, error, data]);
+
+    if (loading) return (
+        <div style={{ textAlign: "center", padding: "4rem" }}>
+            <h3 className="title">Loading Results...</h3>
         </div>
-      </main>
-      <AppFooter />
-    </div>
-  );
-}
+    );
 
-function ResultSkeleton() {
-  return (
-    <div className="space-y-6" aria-label="Loading your result" aria-live="polite">
-      <section className="overflow-hidden rounded-[32px] bg-forest p-7 sm:p-10">
-        <div className="h-5 w-36 animate-pulse rounded-full bg-white/10" />
-        <div className="mt-7 h-12 w-64 max-w-full animate-pulse rounded-2xl bg-white/10" />
-        <div className="mt-4 h-4 w-48 animate-pulse rounded-full bg-white/10" />
-      </section>
-      <div className="grid gap-6 lg:grid-cols-[1.3fr_.7fr]">
-        <div className="ss-card space-y-4 p-7">
-          <div className="h-10 w-10 animate-pulse rounded-2xl bg-sage" />
-          <div className="h-6 w-52 animate-pulse rounded-lg bg-forest/8" />
-          <div className="h-4 w-full animate-pulse rounded bg-forest/6" />
-          <div className="h-4 w-5/6 animate-pulse rounded bg-forest/6" />
+    return (
+        <div style={{ marginTop: "1rem" }}>
+            <ApiErrorPanel error={error} onRetry={error?.retryable ? loadData : undefined} />
+
+            {data?.safety && data.safety.recommendation_permission !== "allowed" ? (
+                <>
+                    {data.assessment && (
+                        <div className="glass-panel animated" style={{ padding: "2.5rem", marginBottom: "2rem" }}>
+                            <h2 style={{
+                                marginBottom: "2rem",
+                                fontFamily: "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif",
+                                color: "#111827",
+                                fontSize: "2rem",
+                                fontWeight: 700,
+                                letterSpacing: "-0.025em"
+                            }}>
+                                Assessment Results
+                            </h2>
+                            <div style={{
+                                backgroundColor: "#ecfdf5",
+                                padding: "1.5rem",
+                                borderRadius: "8px",
+                                position: "relative"
+                            }}>
+                                <div style={{
+                                    color: "#1f2937",
+                                    fontWeight: 600,
+                                    fontSize: "1.125rem",
+                                    marginBottom: "0.5rem",
+                                    textTransform: "capitalize"
+                                }}>
+                                    Condition: {data.assessment.condition.replace(/_/g, ' ')}
+                                </div>
+                                <div style={{
+                                    color: "#6b7280",
+                                    fontSize: "0.95rem",
+                                    textTransform: "capitalize"
+                                }}>
+                                    Confidence: {data.assessment.confidence_level}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <SafetyFeedback safety={data.safety} />
+                </>
+            ) : data?.recommendation ? (
+                <RecommendationResult recommendation={data.recommendation} />
+            ) : !error ? (
+                <div className="glass-panel animated" style={{ padding: "3rem", textAlign: "center" }}>
+                    <h3 className="title">Results not ready</h3>
+                    <p className="subtitle" style={{ marginBottom: "2rem" }}>
+                        Your assessment has not reached the final step.
+                    </p>
+                    <button className="btn-primary" onClick={() => router.push(`/assessment/${id}`)}>
+                        Continue Assessment
+                    </button>
+                </div>
+            ) : null}
+
+            {/* Global restart action */}
+            <div style={{ marginTop: "3rem", textAlign: "center" }}>
+                <button
+                    className="btn-secondary"
+                    onClick={() => {
+                        sessionStorage.removeItem("assessment_id");
+                        router.push("/");
+                    }}
+                >
+                    Start a New Assessment
+                </button>
+            </div>
         </div>
-        <div className="ss-card space-y-4 p-7">
-          <div className="h-6 w-36 animate-pulse rounded-lg bg-forest/8" />
-          <div className="h-4 w-full animate-pulse rounded bg-forest/6" />
-          <div className="h-4 w-4/5 animate-pulse rounded bg-forest/6" />
-        </div>
-      </div>
-      <p className="text-center text-xs font-semibold text-forest/40">
-        Loading your assessment and guidance…
-      </p>
-    </div>
-  );
+    );
 }

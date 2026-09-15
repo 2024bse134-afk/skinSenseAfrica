@@ -52,6 +52,7 @@ export function ImageUploader({ assessmentId, onComplete }: ImageUploaderProps) 
     };
 
     const clearSelection = () => {
+        setError(null);
         setFile(null);
         if (preview) URL.revokeObjectURL(preview);
         setPreview(null);
