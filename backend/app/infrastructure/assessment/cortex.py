@@ -143,7 +143,7 @@ class CortexMultimodalAssessmentProvider:
             raise AssessmentProviderUnavailable("Cortex image assessment model is invalid")
         if schema_version != "v1":
             raise AssessmentProviderUnavailable("Cortex image assessment schema is unsupported")
-        if max_retries not in {0, 1}:
+        if max_retries not in {0, 1, 2, 3}:
             raise AssessmentProviderUnavailable("Cortex retry configuration is invalid")
         if not 1 <= max_output_tokens <= 4096:
             raise AssessmentProviderUnavailable("Cortex output-token configuration is invalid")

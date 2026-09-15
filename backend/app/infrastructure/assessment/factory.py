@@ -26,7 +26,7 @@ def build_image_assessment_provider(
             schema_version=str(
                 getattr(config, "image_assessment_schema_version", "")
             ),
-            max_retries=int(getattr(config, "image_assessment_max_retries", 1)),
+            max_retries=int(getattr(config, "image_assessment_max_retries", 3)),
             max_output_tokens=int(
                 getattr(config, "image_assessment_max_output_tokens", 800)
             ),
